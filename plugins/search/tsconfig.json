@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "jsx": "react-jsx",
+    "baseUrl": "../..",
+    "paths": {
+      "@oxog/routely-core": ["packages/core/dist"],
+      "@oxog/routely": ["packages/react/dist"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

@@ -1,0 +1,99 @@
+---
+layout '../layouts/Layout.astro';
+
+title = 'API Reference';
+description = 'Complete API reference for Routely router.';
+---
+
+<aside slot="sidebar">
+  <ul>
+    <li><a href="/routely/api/" class="active">API Reference</a></li>
+    <li><a href="#core">Core Functions</a></li>
+    <li><a href="#hooks">Hooks</a></li>
+    <li><a href="#components">Components</a></li>
+    <li><a href="#types">Types</a></li>
+  </ul>
+</aside>
+
+<h1>API Reference</h1>
+<p>Complete API documentation for Routely.</p>
+
+<h2 id="core">Core Functions</h2>
+
+<h3>createRouter(config)</h3>
+<p>Creates a new router instance.</p>
+<pre><code>function createRouter&lt;T extends Route = Route&gt;(config: {
+  routes: T[];
+}): Router&lt;T&gt;</code></pre>
+<p><strong>Parameters:</strong></p>
+<ul>
+  <li><code>config.routes</code> - Array of route definitions</li>
+</ul>
+<p><strong>Returns:</strong> A router instance</p>
+
+<h3>route(path, component, children?)</h3>
+<p>Defines a route with optional nested routes.</p>
+<pre><code>function route&lt;TPath extends string&gt;(
+  path: TPath,
+  component: () => Promise&lt;{ default: ComponentType }&gt;,
+  children?: Route[]
+): Route;</code></pre>
+<p><strong>Parameters:</strong></p>
+<ul>
+  <li><code>path</code> - Route path pattern (use <code>:paramName</code> for dynamic segments)</li>
+  <li><code>component</code> - Lazy-loaded component function</li>
+  <li><code>children</code> - Optional nested child routes</li>
+</ul>
+
+<h2 id="hooks">Hooks</h2>
+
+<h3>useNavigate()</h3>
+<p>Hook for programmatic navigation.</p>
+<pre><code>function useNavigate(): (to: string | number) => Promise&lt;void&gt;;</code></pre>
+<p><strong>Returns:</strong> Navigate function accepting path or numeric delta</p>
+
+<h3>useParams&lt;T&gt;()</h3>
+<p>Hook for accessing route parameters with type safety.</p>
+<pre><code>function useParams&lt;T extends Record&lt;string, string&gt;&gt;(): T;</code></pre>
+<p><strong>Type Parameter:</strong></p>
+<ul>
+  <li><code>T</code> - Object type mapping parameter names to types</li>
+</ul>
+
+<h3>useLocation()</h3>
+<p>Hook for accessing current location.</p>
+<pre><code>function useLocation(): Location;</code></pre>
+<p><strong>Returns:</strong> Location object with pathname, route, and params</p>
+
+<h2 id="components">Components</h2>
+
+<h3>Outlet</h3>
+<p>Component placeholder for rendering nested child routes.</p>
+<pre><code>const Outlet: ComponentType;</code></pre>
+
+<h2 id="types">Types</h2>
+
+<h3>Route</h3>
+<pre><code>interface Route {
+  path: string;
+  component: () => Promise&lt;{ default: ComponentType }&gt;;
+  children?: Route[];
+  meta?: Record&lt;string, unknown&gt;;
+}</code></pre>
+
+<h3>Router</h3>
+<pre><code>interface Router {
+  routes: Route[];
+  currentRoute: RouteLocation | null;
+  history: History;
+  navigate(to: string, options?: NavigateOptions): Promise&lt;void&gt;;
+  back(): void;
+  forward(): void;
+  go(delta: number): void;
+  use&lt;T extends Plugin&gt;(plugin: T): this;
+  unregister(name: string): void;
+  list(): string[];
+  on(event: RouterEvent, callback: (...args: unknown[]) =&gt; void): () =&gt; void;
+  off(event: RouterEvent, callback: (...args: unknown[]) =&gt; void): void;
+  RouterProvider: ComponentType&lt;RouterProviderProps&gt;;
+}</code></pre>

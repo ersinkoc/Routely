@@ -1,0 +1,128 @@
+---
+layout '../layouts/Layout.astro';
+
+title = 'Examples';
+description = 'Example applications built with Routely.';
+---
+
+<aside slot="sidebar">
+  <ul>
+    <li><a href="/routely/examples/" class="active">Examples</a></li>
+    <li><a href="#basic">Basic Examples</a></li>
+    <li><a href="#navigation">Navigation Examples</a></li>
+    <li><a href="#plugins">Plugin Examples</a></li>
+    <li><a href="#real-world">Real-World Examples</a></li>
+  </ul>
+</aside>
+
+<h1>Examples</h1>
+<p>Explore example applications built with Routely.</p>
+
+<h2 id="basic">Basic Examples</h2>
+
+<h3>Minimal Setup</h3>
+<p>Simplest possible Routely application with 2 routes.</p>
+<pre><code>const routes = [
+  route('/', () => import('./Home')),
+  route('/about', () => import('./About')),
+];</code></pre>
+
+<h3>Nested Routes</h3>
+<p>Multi-level nested routing with dashboard layout.</p>
+<pre><code>const routes = [
+  route('/dashboard', () => import('./Dashboard'), [
+    route('/dashboard/settings', () => import('./Settings')),
+    route('/dashboard/profile', () => import('./Profile')),
+  ]),
+];</code></pre>
+
+<h3>404 Handling</h3>
+<p>Catch-all route for handling unmatched paths.</p>
+<pre><code>const routes = [
+  route('/', () => import('./Home')),
+  route('*', () => import('./NotFound')), // Catch-all
+];</code></pre>
+
+<h2 id="navigation">Navigation Examples</h2>
+
+<h3>Programmatic Navigation</h3>
+<p>Using <code>useNavigate()</code> hook for navigation.</p>
+<pre><code>function Home() {
+  const navigate = useNavigate();
+  return (
+    &lt;button onClick={() => navigate('/about')}&gt;
+      Go to About
+    &lt;/button&gt;
+  );
+}</code></pre>
+
+<h3>Route Parameters</h3>
+<p>Type-safe dynamic route parameters.</p>
+<pre><code>function UserDetail() {
+  const { userId } = useParams&lt;{ userId: string }&gt;();
+  return &lt;div&gt;User: {userId}&lt;/div&gt;;
+}</code></pre>
+
+<h2 id="plugins">Plugin Examples</h2>
+
+<h3>Lazy Loading</h3>
+<p>Code splitting with lazy plugin.</p>
+<pre><code>router.use(lazyPlugin({ timeout: 3000 }));</code></pre>
+
+<h3>Protected Routes</h3>
+<p>Authentication guards with guards plugin.</p>
+<pre><code>router.use(guardsPlugin({
+  guards: [
+    {
+      pattern: '/dashboard',
+      beforeEnter: () => {
+        if (!isAuthenticated) {
+          return { redirect: '/login' };
+        }
+      },
+    },
+  ],
+}));</code></pre>
+
+<h3>Search Parameters</h3>
+<p>Type-safe URL query parameters.</p>
+<pre><code>const { search, setSearch } = useSearch&lt;{
+  page?: string;
+  sort?: 'name' | 'price';
+}&gt;();</code></pre>
+
+<h2 id="real-world">Real-World Examples</h2>
+
+<h3>Dashboard Application</h3>
+<p>Complete dashboard with authentication, lazy loading, and role-based access control.</p>
+<ul>
+  <li>Authentication flow</li>
+  <li>Protected admin routes</li>
+  <li>User management</li>
+  <li>Analytics dashboard</li>
+</ul>
+
+<h3>E-commerce Store</h3>
+<p>Full-featured online store with cart and checkout.</p>
+<ul>
+  <li>Product catalog with filters</li>
+  <li>Shopping cart management</li>
+  <li>Checkout flow</li>
+  <li>Search parameter handling</li>
+</ul>
+
+<h3>Blog Platform</h3>
+<p>Blog with posts, categories, and search.</p>
+<ul>
+  <li>Post listing with pagination</li>
+  <li>Category filtering</li>
+  <li>Tag-based navigation</li>
+  <li>Search functionality</li>
+</ul>
+
+<h2>Running Examples</h2>
+<p>Clone the repository and run examples:</p>
+<pre><code>git clone https://github.com/oxog/routely.git
+cd routely/examples/01-basic/minimal
+npm install
+npm run dev</code></pre>

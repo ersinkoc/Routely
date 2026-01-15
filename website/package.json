@@ -1,0 +1,28 @@
+{
+  "name": "@oxog/routely-website",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.0.0",
+    "@oxog/routely-core": "workspace:*",
+    "@oxog/routely-plugin-lazy": "workspace:*",
+    "@oxog/routely-plugin-guards": "workspace:*",
+    "@oxog/routely-plugin-search": "workspace:*",
+    "astro": "^5.3.0",
+    "prism": "^1.29.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}

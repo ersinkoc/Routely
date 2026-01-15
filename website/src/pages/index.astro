@@ -1,0 +1,167 @@
+---
+layout '../layouts/Layout.astro';
+
+title = 'Routely - Type-Safe React Router';
+description = 'A type-safe React router with plugin architecture for building modern web applications.';
+
+const features = [
+  {
+    title: 'Type-Safe',
+    description: 'Full TypeScript support with automatic type inference for route parameters.',
+    icon: '🔒',
+  },
+  {
+    title: 'Plugin Architecture',
+    description: 'Extensible plugin system for adding features like lazy loading, guards, and search.',
+    icon: '🧩',
+  },
+  {
+    title: 'Code Splitting',
+    description: 'Built-in lazy loading support for optimal bundle sizes.',
+    icon: '📦',
+  },
+  {
+    title: 'Navigation Guards',
+    description: 'Protect routes and control navigation flow with before/after hooks.',
+    icon: '🛡️',
+  },
+  {
+    title: 'Search Parameters',
+    description: 'Type-safe URL search parameter management.',
+    icon: '🔍',
+  },
+  {
+    title: 'Zero Config',
+    description: 'Works out of the box with sensible defaults.',
+    icon: '⚡',
+  },
+];
+
+---
+
+<div class="hero">
+  <h1>Type-Safe React Router</h1>
+  <p>Build modern web applications with confidence. Routely provides type safety, lazy loading, and a powerful plugin architecture.</p>
+  <div class="cta">
+    <a href="/routely/getting-started" class="btn primary">Get Started</a>
+    <a href="/routely/api" class="btn">View API</a>
+  </div>
+  <pre><code>npm install @oxog/routely-core</code></pre>
+</div>
+
+<section class="features">
+  {features.map((feature) => (
+    <div class="feature">
+      <div class="icon">{feature.icon}</div>
+      <h3>{feature.title}</h3>
+      <p>{feature.description}</p>
+    </div>
+  ))}
+</section>
+
+<style>
+  .hero {
+    text-align: center;
+    padding: 4rem 0;
+  }
+
+  .hero h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero p {
+    font-size: 1.25rem;
+    color: #6b7280;
+    margin-bottom: 2rem;
+  }
+
+  .cta {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+
+  .btn {
+    padding: 0.75rem 2rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn.primary {
+    background: #2563eb;
+    color: white;
+  }
+
+  .btn.primary:hover {
+    background: #1d4ed8;
+  }
+
+  .btn:not(.primary) {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .btn:not(.primary):hover {
+    background: #e5e7eb;
+  }
+
+  .hero pre {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: #1f2937;
+    color: #e5e7eb;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 4rem;
+  }
+
+  .feature {
+    padding: 2rem;
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid #e5e7eb;
+    text-align: center;
+  }
+
+  .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .feature h3 {
+    margin-bottom: 0.5rem;
+  }
+
+  .feature p {
+    color: #6b7280;
+  }
+</style>
+
+<style define:vars={true}>
+  header {
+    border-bottom-color: transparent;
+    background: transparent;
+  }
+
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+</style>

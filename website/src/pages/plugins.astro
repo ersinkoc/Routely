@@ -1,0 +1,102 @@
+---
+layout '../layouts/Layout.astro';
+
+title = 'Plugins';
+description = 'Extend Routely with plugins for additional functionality.';
+---
+
+<aside slot="sidebar">
+  <ul>
+    <li><a href="/routely/plugins/" class="active">Plugins</a></li>
+    <li><a href="#lazy">Lazy Loading</a></li>
+    <li><a href="#guards">Navigation Guards</a></li>
+    <li><a href="#search">Search Parameters</a></li>
+    <li><a href="#scroll">Scroll Management</a></li>
+    <li><a href="#transition">Page Transitions</a></li>
+  </ul>
+</aside>
+
+<h1>Plugins</h1>
+<p>Extend Routely's functionality with plugins. Install plugins using <code>router.use()</code>.</p>
+
+<h2 id="lazy">Lazy Loading Plugin</h2>
+<p>Automatically handle code splitting for your routes.</p>
+<pre><code>import { lazyPlugin } from '@oxog/routely-plugin-lazy';
+
+router.use(lazyPlugin({ timeout: 5000 }));</code></pre>
+<p><strong>Options:</strong></p>
+<ul>
+  <li><code>timeout</code> - Maximum time to wait for component load (default: 5000ms)</li>
+  <li><code>fallback</code> - Component to show while loading</li>
+  <li><code>error</code> - Component to show on load failure</li>
+</ul>
+
+<h2 id="guards">Navigation Guards Plugin</h2>
+<p>Protect routes and control navigation flow.</p>
+<pre><code>import { guardsPlugin } from '@oxog/routely-plugin-guards';
+
+router.use(guardsPlugin({
+  guards: [
+    {
+      pattern: '/dashboard',
+      beforeEnter: () => {
+        if (!isAuthenticated) {
+          return { redirect: '/login' };
+        }
+      },
+    },
+  ],
+}));</code></pre>
+
+<h2 id="search">Search Parameters Plugin</h2>
+<p>Type-safe URL search parameter management.</p>
+<pre><code>import { searchPlugin } from '@oxog/routely-plugin-search';
+
+router.use(searchPlugin());</code></pre>
+<p>Usage in components:</p>
+<pre><code>function Products() {
+  const { search, setSearch } = useSearch&lt;{
+    page?: string;
+    sort?: 'name' | 'price';
+  }&gt;();
+  
+  const page = parseInt(search.page || '1');
+  const sort = search.sort || 'name';
+  
+  return &lt;div&gt;...&lt;/div&gt;;
+}</code></pre>
+
+<h2 id="scroll">Scroll Management Plugin</h2>
+<p>Automatically handle scroll position on navigation.</p>
+<pre><code>import { scrollPlugin } from '@oxog/routely-plugin-scroll';
+
+router.use(scrollPlugin({
+  behavior: 'smooth',
+  scrollOnNavigate: true,
+}));</code></pre>
+
+<h2 id="transition">Page Transitions Plugin</h2>
+<p>Add animated transitions between routes.</p>
+<pre><code>import { transitionPlugin } from '@oxog/routely-plugin-transition';
+
+router.use(transitionPlugin({
+  duration: 300,
+  type: 'fade',
+}));</code></pre>
+
+<h2>Creating Custom Plugins</h2>
+<p>Create your own plugins by implementing the <code>RouterPlugin</code> interface:</p>
+<pre><code>const myPlugin = {
+  name: 'my-plugin',
+  version: '1.0.0',
+  install(router) {
+    // Modify router behavior
+    const originalNavigate = router.navigate.bind(router);
+    router.navigate = async (to, options) => {
+      console.log('Navigating to:', to);
+      return originalNavigate(to, options);
+    };
+  },
+};
+
+router.use(myPlugin);</code></pre>

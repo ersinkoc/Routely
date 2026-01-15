@@ -1,0 +1,81 @@
+---
+layout '../layouts/Layout.astro';
+
+title = 'Getting Started';
+description = 'Get up and running with Routely in minutes.';
+---
+
+<aside slot="sidebar">
+  <ul>
+    <li><a href="/routely/getting-started/" class="active">Getting Started</a></li>
+    <li><a href="/routely/getting-started/installation">Installation</a></li>
+    <li><a href="/routely/getting-started/basic-setup">Basic Setup</a></li>
+    <li><a href="/routely/getting-started/defining-routes">Defining Routes</a></li>
+    <li><a href="/routely/getting-started/navigation">Navigation</a></li>
+  </ul>
+</aside>
+
+<h1>Getting Started</h1>
+<p>Welcome to Routely! This guide will help you get up and running with type-safe routing in minutes.</p>
+
+<h2>Installation</h2>
+<p>Install the core package:</p>
+<pre><code>npm install @oxog/routely-core</code></pre>
+
+<h2>Basic Setup</h2>
+<p>Create your first router with a few routes:</p>
+<pre><code>import { createRouter, route, Outlet } from '@oxog/routely-core';
+
+// Define routes
+const routes = [
+  route('/', () => import('./pages/Home')),
+  route('/about', () => import('./pages/About')),
+  route('/users/:userId', () => import('./pages/UserDetail')),
+];
+
+// Create router
+const router = createRouter({ routes });
+
+// Use in your app
+function App() {
+  return (
+    &lt;router.RouterProvider router={router}&gt;
+      &lt;Outlet /&gt;
+    &lt;/router.RouterProvider&gt;
+  );
+}</code></pre>
+
+<h2>Defining Routes</h2>
+<p>Routes are defined using the <code>route()</code> function:</p>
+<ul>
+  <li><strong>Static routes:</strong> <code>route('/about')</code></li>
+  <li><strong>Dynamic routes:</strong> <code>route('/users/:userId')</code></li>
+  <li><strong>Nested routes:</strong> Pass children array as third argument</li>
+</ul>
+
+<h2>Navigation</h2>
+<p>Use the <code>useNavigate()</code> hook for programmatic navigation:</p>
+<pre><code>function MyComponent() {
+  const navigate = useNavigate();
+  
+  return (
+    &lt;button onClick={() => navigate('/about')}&gt;
+      Go to About
+    &lt;/button&gt;
+  );
+}</code></pre>
+
+<h2>Accessing Parameters</h2>
+<p>Use the <code>useParams()</code> hook with TypeScript generics for type safety:</p>
+<pre><code>function UserDetail() {
+  const { userId } = useParams&lt;{ userId: string }&gt;();
+  
+  return &lt;div&gt;User ID: {userId}&lt;/div&gt;;
+}</code></pre>
+
+<h2>Next Steps</h2>
+<ul>
+  <li><a href="/routely/plugins">Explore Plugins</a></li>
+  <li><a href="/routely/api">View API Reference</a></li>
+  <li><a href="/routely/examples">Check Examples</a></li>
+</ul>

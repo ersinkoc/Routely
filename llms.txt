@@ -1,113 +1,81 @@
-# @oxog/routely
+# Routely: Type-Safe React Router
 
-> The router that respects your bundle. Type-safe, extensible, tiny.
+Routely is a type-safe React router with a plugin architecture. It provides type safety, lazy loading, navigation guards, and search parameter management.
 
-## Install
-
-```bash
-npm install @oxog/routely
-```
-
-## Basic Usage
+## Quick Start
 
 ```typescript
-import { createRouter, route, RouterProvider, Link, Outlet } from '@oxog/routely';
+import { createRouter, route, Outlet, useNavigate, useParams } from '@oxog/routely-core';
 
-const router = createRouter({
-  routes: [
-    route('/', Home),
-    route('/users', Users, [
-      route(':id', UserDetail),
-    ]),
-  ],
-});
+// Define routes
+const routes = [
+  route('/', () => import('./pages/Home')),
+  route('/users/:userId', () => import('./pages/UserDetail')),
+];
 
+// Create router
+const router = createRouter({ routes });
+
+// Use in app
 function App() {
   return (
-    <RouterProvider router={router}>
-      <nav>
-        <Link to="/">Home</Link>
-        <Link to="/users">Users</Link>
-      </nav>
+    <router.RouterProvider router={router}>
       <Outlet />
-    </RouterProvider>
+    </router.RouterProvider>
   );
+}
+
+// Navigate programmatically
+function SomeComponent() {
+  const navigate = useNavigate();
+  const { userId } = useParams<{ userId: string }>();
+  
+  // Navigate with type safety
+  navigate(`/users/${userId}`);
 }
 ```
 
-## API Summary
+## API Reference
 
-### Router
-- `createRouter(options)` - Create router instance
-- `route(path, component, children?)` - Define route
-- `router.use(plugin)` - Register plugin
-- `router.navigate(to, options?)` - Navigate programmatically
+### Core Functions
 
-### Hooks
-- `useNavigate()` - Get navigate function
-- `useParams<T>()` - Get route params
-- `useRoute()` - Get current route
-- `useSearch<T>()` - Get/set search params (requires searchPlugin)
+- `createRouter({ routes })` - Creates a router instance with route definitions
+- `route(path, component, children?)` - Defines a route with optional nested routes
+- `useNavigate()` - Hook for programmatic navigation
+- `useParams<T>()` - Hook for accessing route parameters with type safety
+- `useLocation()` - Hook for accessing current location
+- `Outlet` - Component for rendering nested routes
 
-### Components
-- `<RouterProvider router={router}>` - Context provider
-- `<Link to="/path">` - Navigation link
-- `<Outlet />` - Nested route renderer
+### Plugins
 
-## Plugins
+- `lazyPlugin(options)` - Code splitting with lazy loading
+- `guardsPlugin(options)` - Navigation guards for protected routes
+- `searchPlugin()` - Type-safe URL search parameters
+- `scrollPlugin(options)` - Scroll position management
+- `transitionPlugin(options)` - Page transition animations
+- `breadcrumbPlugin(options)` - Breadcrumb navigation
+- `devtoolsPlugin(options)` - Developer tools
 
-- `lazyPlugin` - Dynamic imports, code splitting
-- `guardsPlugin` - Route protection, auth
-- `searchPlugin` - Type-safe query params
-- `scrollPlugin` - Scroll restoration
-- `transitionPlugin` - Page transitions
-- `breadcrumbPlugin` - Auto breadcrumbs
-- `devtoolsPlugin` - Debug panel
-
-## Type-Safe Routes
+## Plugin Installation
 
 ```typescript
-import { createRoutes } from '@oxog/routely';
-
-const routes = createRoutes({
-  users: {
-    list: '/users',
-    detail: '/users/:id',
-  },
-});
-
-navigate(routes.users.detail, { id: '123' }); // ✅ Type-safe
+router.use(lazyPlugin({ timeout: 3000 }));
+router.use(guardsPlugin({ guards: [...] }));
 ```
 
-## Common Patterns
+## Route Patterns
 
-### Protected Routes
+- Static: `/about`
+- Dynamic: `/users/:userId`
+- Nested: Parent routes with children arrays
+- Catch-all: `*` for 404 pages
+
+## Type Safety
+
+All route parameters are automatically typed. Use TypeScript generics for full type safety:
+
 ```typescript
-router.use(guardsPlugin({
-  '/admin/*': () => user.isAdmin,
-}));
+const { userId } = useParams<{ userId: string }>();
 ```
 
-### Lazy Loading
-```typescript
-route('/dashboard', lazy(() => import('./Dashboard')));
-```
-
-### Search Params
-```typescript
-const { search, setSearch } = useSearch<{ page: number }>();
-```
-
-## Errors
-
-| Code | Meaning | Solution |
-|------|---------|----------|
-| ROUTE_NOT_FOUND | No matching route | Check route definitions |
-| GUARD_REJECTED | Navigation blocked by guard | Handle auth redirect |
-| PLUGIN_ERROR | Plugin threw error | Check plugin config |
-
-## Links
-
-- Docs: https://routely.oxog.dev
-- GitHub: https://github.com/ersinkoc/routely
-- NPM: https://www.npmjs.com/package/@oxog/routely
+For more information, see the [GitHub repository](https://github.com/oxog/routely).
