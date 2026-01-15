@@ -1,0 +1,113 @@
+# @oxog/routely
+
+> The router that respects your bundle. Type-safe, extensible, tiny.
+
+## Install
+
+```bash
+npm install @oxog/routely
+```
+
+## Basic Usage
+
+```typescript
+import { createRouter, route, RouterProvider, Link, Outlet } from '@oxog/routely';
+
+const router = createRouter({
+  routes: [
+    route('/', Home),
+    route('/users', Users, [
+      route(':id', UserDetail),
+    ]),
+  ],
+});
+
+function App() {
+  return (
+    <RouterProvider router={router}>
+      <nav>
+        <Link to="/">Home</Link>
+        <Link to="/users">Users</Link>
+      </nav>
+      <Outlet />
+    </RouterProvider>
+  );
+}
+```
+
+## API Summary
+
+### Router
+- `createRouter(options)` - Create router instance
+- `route(path, component, children?)` - Define route
+- `router.use(plugin)` - Register plugin
+- `router.navigate(to, options?)` - Navigate programmatically
+
+### Hooks
+- `useNavigate()` - Get navigate function
+- `useParams<T>()` - Get route params
+- `useRoute()` - Get current route
+- `useSearch<T>()` - Get/set search params (requires searchPlugin)
+
+### Components
+- `<RouterProvider router={router}>` - Context provider
+- `<Link to="/path">` - Navigation link
+- `<Outlet />` - Nested route renderer
+
+## Plugins
+
+- `lazyPlugin` - Dynamic imports, code splitting
+- `guardsPlugin` - Route protection, auth
+- `searchPlugin` - Type-safe query params
+- `scrollPlugin` - Scroll restoration
+- `transitionPlugin` - Page transitions
+- `breadcrumbPlugin` - Auto breadcrumbs
+- `devtoolsPlugin` - Debug panel
+
+## Type-Safe Routes
+
+```typescript
+import { createRoutes } from '@oxog/routely';
+
+const routes = createRoutes({
+  users: {
+    list: '/users',
+    detail: '/users/:id',
+  },
+});
+
+navigate(routes.users.detail, { id: '123' }); // ✅ Type-safe
+```
+
+## Common Patterns
+
+### Protected Routes
+```typescript
+router.use(guardsPlugin({
+  '/admin/*': () => user.isAdmin,
+}));
+```
+
+### Lazy Loading
+```typescript
+route('/dashboard', lazy(() => import('./Dashboard')));
+```
+
+### Search Params
+```typescript
+const { search, setSearch } = useSearch<{ page: number }>();
+```
+
+## Errors
+
+| Code | Meaning | Solution |
+|------|---------|----------|
+| ROUTE_NOT_FOUND | No matching route | Check route definitions |
+| GUARD_REJECTED | Navigation blocked by guard | Handle auth redirect |
+| PLUGIN_ERROR | Plugin threw error | Check plugin config |
+
+## Links
+
+- Docs: https://routely.oxog.dev
+- GitHub: https://github.com/ersinkoc/routely
+- NPM: https://www.npmjs.com/package/@oxog/routely
