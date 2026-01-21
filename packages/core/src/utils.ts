@@ -98,7 +98,20 @@ export function normalizeSlashes(path: string): string {
 }
 
 /**
+ * Safely decode a URI component, returning the original value if decoding fails.
+ */
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    // If decoding fails (malformed URI), return the original value
+    return value;
+  }
+}
+
+/**
  * Parse query string into object.
+ * Supports multiple values for the same key by returning arrays.
  *
  * @param search - Query string (with or without ?)
  * @returns Parsed query parameters
@@ -106,10 +119,11 @@ export function normalizeSlashes(path: string): string {
  * @example
  * ```typescript
  * parseSearch('?page=1&sort=asc'); // { page: '1', sort: 'asc' }
+ * parseSearch('?tags=react&tags=vue'); // { tags: ['react', 'vue'] }
  * ```
  */
-export function parseSearch(search: string): Record<string, string> {
-  const result: Record<string, string> = {};
+export function parseSearch(search: string): Record<string, string | string[]> {
+  const result: Record<string, string | string[]> = {};
 
   if (!search) {
     return result;
@@ -125,9 +139,24 @@ export function parseSearch(search: string): Record<string, string> {
   const pairs = queryString.split('&');
 
   for (const pair of pairs) {
-    const [key, value] = pair.split('=');
-    if (key) {
-      result[decodeURIComponent(key)] = value ? decodeURIComponent(value) : '';
+    const [key, ...valueParts] = pair.split('=');
+    const value = valueParts.join('='); // Handle values that contain =
+
+    if (!key) continue;
+
+    const decodedKey = safeDecodeURIComponent(key);
+    const decodedValue = value ? safeDecodeURIComponent(value) : '';
+
+    if (decodedKey in result) {
+      // Key already exists, convert to array or append to existing array
+      const existing = result[decodedKey];
+      if (Array.isArray(existing)) {
+        existing.push(decodedValue);
+      } else {
+        result[decodedKey] = [existing, decodedValue];
+      }
+    } else {
+      result[decodedKey] = decodedValue;
     }
   }
 
@@ -136,6 +165,7 @@ export function parseSearch(search: string): Record<string, string> {
 
 /**
  * Stringify object into query string.
+ * Handles array values properly.
  *
  * @param params - Parameters to stringify
  * @returns Query string (without ?)
@@ -143,14 +173,27 @@ export function parseSearch(search: string): Record<string, string> {
  * @example
  * ```typescript
  * stringifySearch({ page: '1', sort: 'asc' }); // 'page=1&sort=asc'
+ * stringifySearch({ tags: ['react', 'vue'] }); // 'tags=react&tags=vue'
  * ```
  */
-export function stringifySearch(params: Record<string, string>): string {
+export function stringifySearch(params: Record<string, string | string[]>): string {
   const pairs: string[] = [];
 
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null) {
-      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    const encodedKey = encodeURIComponent(key);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== undefined && item !== null) {
+          pairs.push(`${encodedKey}=${encodeURIComponent(item)}`);
+        }
+      }
+    } else {
+      pairs.push(`${encodedKey}=${encodeURIComponent(value)}`);
     }
   }
 

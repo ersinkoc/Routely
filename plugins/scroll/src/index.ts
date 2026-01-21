@@ -217,8 +217,16 @@ export function scrollPlugin(options: ScrollPluginOptions = {}): RouterPlugin {
       let navigationDirection: 'forward' | 'backward' | 'new' = 'new';
 
       // Wrap navigate to track navigation direction
-      const originalNavigate = router.navigate.bind(router);
-      router.navigate = async (to: string, navigateOptions?: any) => {
+      const originalNavigate = (router as any)._originalNavigate ?? router.navigate.bind(router);
+
+      // Store original navigate before overriding
+      if (!(router as any)._originalNavigate) {
+        (router as any)._originalNavigate = originalNavigate;
+      }
+
+      (router as any).navigate = async (to: string, navigateOptions?: any) => {
+        // IMPORTANT: Get currentPath BEFORE calling originalNavigate
+        // because currentRoute will be updated after navigation completes
         const currentPath = normalizePath(router.currentRoute?.path || '');
         const toPath = normalizePath(to);
 

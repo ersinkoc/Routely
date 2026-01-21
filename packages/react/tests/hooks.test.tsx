@@ -72,6 +72,76 @@ describe('useNavigate', () => {
       expect(screen.getByText('Path: /')).toBeInTheDocument();
     });
   });
+
+  it('should navigate with RouteRef object', async () => {
+    const TestComponent = () => {
+      const navigate = useNavigate();
+      const currentRoute = useRoute();
+
+      return (
+        <div>
+          <div>Path: {currentRoute.path}</div>
+          <button onClick={() => navigate({ path: '/users', state: { from: 'home' } })}>
+            Go to Users
+          </button>
+        </div>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const Users = () => <div>Users</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({
+      routes: [route('/', Home), route('/users', Users)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    fireEvent.click(screen.getByText('Go to Users'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Path: /users')).toBeInTheDocument();
+    });
+  });
+
+  it('should navigate with string and options', async () => {
+    const TestComponent = () => {
+      const navigate = useNavigate();
+      const currentRoute = useRoute();
+
+      return (
+        <div>
+          <div>Path: {currentRoute.path}</div>
+          <button onClick={() => navigate('/users', { replace: true })}>Go to Users</button>
+        </div>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const Users = () => <div>Users</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({
+      routes: [route('/', Home), route('/users', Users)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    fireEvent.click(screen.getByText('Go to Users'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Path: /users')).toBeInTheDocument();
+    });
+  });
 });
 
 describe('useParams', () => {
@@ -96,6 +166,29 @@ describe('useParams', () => {
 
     expect(screen.getByText('User ID: 123')).toBeInTheDocument();
   });
+
+  it('should throw error when no route is matched', () => {
+    const TestComponent = () => {
+      const params = useParams<{ id: string }>();
+      return <div>User ID: {params.id}</div>;
+    };
+
+    const history = createMemoryHistory({ initialEntries: ['/nonexistent'] });
+    const router = createRouter({
+      routes: [],
+      history,
+    });
+
+    // RouterProvider will render but with null currentRoute
+    // We need to catch the error from useParams
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <TestComponent />
+        </RouterProvider>
+      );
+    }).toThrow('useParams called but no route is currently matched');
+  });
 });
 
 describe('useRoute', () => {
@@ -119,5 +212,28 @@ describe('useRoute', () => {
     );
 
     expect(screen.getByText('Path: /')).toBeInTheDocument();
+  });
+
+  it('should throw error when no route is matched', () => {
+    const TestComponent = () => {
+      const route = useRoute();
+      return <div>Path: {route.path}</div>;
+    };
+
+    const history = createMemoryHistory({ initialEntries: ['/nonexistent'] });
+    const router = createRouter({
+      routes: [],
+      history,
+    });
+
+    // RouterProvider will render but with null currentRoute
+    // We need to catch the error from useRoute
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <TestComponent />
+        </RouterProvider>
+      );
+    }).toThrow('useRoute called but no route is currently matched');
   });
 });

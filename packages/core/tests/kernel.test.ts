@@ -41,6 +41,23 @@ describe('RouterKernel', () => {
       expect(onInit).toHaveBeenCalled();
     });
 
+    it('should provide access to history through getter', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      // Access the history getter to cover lines 71-72
+      expect(kernel.history).toBe(history);
+    });
+
+    it('should provide access to routes through getter', () => {
+      const history = createMemoryHistory();
+      const routes = [createTestRoute('/'), createTestRoute('/users')];
+      const kernel = new RouterKernel(routes, history);
+
+      // Access the routes getter
+      expect(kernel.routes).toEqual(routes);
+    });
+
     it('should throw error when registering duplicate plugin', () => {
       const history = createMemoryHistory();
       const kernel = new RouterKernel([createTestRoute('/')], history);
@@ -68,6 +85,30 @@ describe('RouterKernel', () => {
       expect(() => kernel.use(plugin)).toThrow(
         'Plugin "dependent-plugin" depends on "missing-plugin" which is not registered'
       );
+    });
+
+    it('should register plugin when all dependencies are satisfied', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      // Register the dependency first
+      const basePlugin: RouterPlugin = {
+        name: 'base-plugin',
+        install: vi.fn(),
+      };
+      kernel.use(basePlugin);
+
+      // Now register a plugin that depends on base-plugin
+      const dependentPlugin: RouterPlugin = {
+        name: 'dependent-plugin',
+        install: vi.fn(),
+        dependencies: ['base-plugin'],
+      };
+
+      kernel.use(dependentPlugin);
+
+      expect(kernel.list()).toContain('dependent-plugin');
+      expect(dependentPlugin.install).toHaveBeenCalled();
     });
 
     it('should unregister a plugin', () => {
@@ -132,22 +173,49 @@ describe('RouterKernel', () => {
 
       expect(onError).toHaveBeenCalled();
     });
+
+    it('should handle plugin throwing non-Error value', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      const errorHandler = vi.fn();
+      kernel.on('error', errorHandler);
+
+      const plugin: RouterPlugin = {
+        name: 'failing-plugin',
+        install: () => {
+          throw 'String error'; // Not an Error object
+        },
+      };
+
+      kernel.use(plugin);
+
+      expect(errorHandler).toHaveBeenCalled();
+      const errorArg = errorHandler.mock.calls[0][0];
+      expect(errorArg).toBeInstanceOf(Error);
+      expect(errorArg.message).toContain('String error');
+    });
   });
 
   describe('Event System', () => {
     it('should add and remove event listeners', async () => {
-      const history = createMemoryHistory();
-      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const history = createMemoryHistory({ initialEntries: ['/'] });
+      const kernel = new RouterKernel([createTestRoute('/'), createTestRoute('/users')], history);
 
       const handler = vi.fn();
       const unsubscribe = kernel.on('afterNavigate', handler);
 
-      await kernel.navigate('/');
+      await kernel.navigate('/users');
+
+      // Wait a tick for async operations
+      await new Promise(resolve => setImmediate(resolve));
+
       expect(handler).toHaveBeenCalled();
 
       handler.mockClear();
       unsubscribe();
       await kernel.navigate('/');
+      await new Promise(resolve => setImmediate(resolve));
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -277,6 +345,34 @@ describe('RouterKernel', () => {
       expect(onError).toHaveBeenCalled();
     });
 
+    it('should handle plugin onBeforeNavigate throwing non-Error value', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel(
+        [createTestRoute('/'), createTestRoute('/users')],
+        history
+      );
+
+      const onError = vi.fn();
+      const plugin: RouterPlugin = {
+        name: 'guard-plugin',
+        install: vi.fn(),
+        onBeforeNavigate: () => {
+          throw 'String error in onBeforeNavigate'; // Not an Error object
+        },
+        onError,
+      };
+
+      kernel.use(plugin);
+      const initialRoute = kernel.currentRoute;
+      await kernel.navigate('/users');
+
+      expect(kernel.currentRoute).toBe(initialRoute);
+      expect(onError).toHaveBeenCalled();
+      const errorArg = onError.mock.calls[0][0];
+      expect(errorArg).toBeInstanceOf(Error);
+      expect(errorArg.message).toContain('String error in onBeforeNavigate');
+    });
+
     it('should emit error event when no route matches', async () => {
       const history = createMemoryHistory();
       const kernel = new RouterKernel([createTestRoute('/')], history);
@@ -289,6 +385,33 @@ describe('RouterKernel', () => {
       expect(errorHandler).toHaveBeenCalled();
       const error = errorHandler.mock.calls[0][0];
       expect(error.code).toBe('ROUTE_NOT_FOUND');
+    });
+
+    it('should handle error in afterNavigate handler gracefully', async () => {
+      const history = createMemoryHistory({ initialEntries: ['/'] });
+      const kernel = new RouterKernel(
+        [createTestRoute('/'), createTestRoute('/users')],
+        history
+      );
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      kernel.on('afterNavigate', () => {
+        throw new Error('Handler error');
+      });
+
+      // Navigation should still complete despite the error in handler
+      await kernel.navigate('/users');
+      // Wait for async operations
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(kernel.currentRoute?.path).toBe('/users');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error in afterNavigate handler:',
+        expect.any(Error)
+      );
+
+      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -305,6 +428,22 @@ describe('RouterKernel', () => {
       await kernel.navigate('/users', { replace: true });
 
       expect(replaceSpy).toHaveBeenCalledWith('/users', undefined);
+    });
+
+    it('should navigate with RouteRef object', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel(
+        [createTestRoute('/'), createTestRoute('/users')],
+        history
+      );
+
+      const pushSpy = vi.spyOn(history, 'push');
+
+      // Create a RouteRef object (just needs a path property for this test)
+      const routeRef = { path: '/users' };
+      await kernel.navigate(routeRef);
+
+      expect(pushSpy).toHaveBeenCalledWith('/users', undefined);
     });
 
     it('should navigate with state', async () => {

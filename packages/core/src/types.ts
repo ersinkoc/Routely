@@ -23,8 +23,8 @@ export interface Route {
   path: string;
   /** Extracted URL parameters */
   params: Record<string, string>;
-  /** Parsed search/query parameters */
-  search: Record<string, string>;
+  /** Parsed search/query parameters (can be string or string[] for multiple values) */
+  search: Record<string, string | string[]>;
   /** URL hash (without #) */
   hash: string;
   /** Arbitrary state data passed during navigation */
@@ -105,8 +105,9 @@ export interface Router {
    * Navigate to a new route.
    * @param to - Target path or route reference
    * @param options - Navigation options
+   * @returns Promise that resolves to true if navigation succeeded, false otherwise
    */
-  navigate(to: string | RouteRef, options?: NavigateOptions): void;
+  navigate(to: string | RouteRef, options?: NavigateOptions): Promise<boolean>;
 
   /** Navigate back in history */
   back(): void;
@@ -153,6 +154,12 @@ export interface Router {
    * @param handler - Event handler to remove
    */
   off(event: RouterEvent, handler: RouterEventHandler): void;
+
+  /**
+   * Destroy the router and cleanup all resources.
+   * Unsubscribes from history changes and clears all listeners.
+   */
+  destroy(): void;
 }
 
 /**

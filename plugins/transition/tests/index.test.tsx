@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import {
   transitionPlugin,
   getTransitionPluginOptions,
@@ -37,6 +37,10 @@ const createMockRouter = (): Router => ({
 });
 
 describe('transitionPlugin', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
   describe('plugin creation', () => {
     it('should create a plugin with correct metadata', () => {
       const plugin = transitionPlugin();

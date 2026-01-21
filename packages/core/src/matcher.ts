@@ -20,11 +20,47 @@ export function pathToRegex(path: string): RegExp {
   }
 
   let pattern = normalized.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+
+  // Handle optional parameters (:id?)
   pattern = pattern.replace(/:([^/]+)\?/g, '(?:/([^/]+))?');
+
+  // Handle required parameters (:id)
   pattern = pattern.replace(/:([^/]+)/g, '([^/]+)');
+
+  // Handle wildcards
   pattern = pattern.replace(/\*/g, '(.*)');
 
   return new RegExp(`^${pattern}$`);
+}
+
+/**
+ * Safely decode a URI component, returning the original value if decoding fails.
+ */
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    // If decoding fails (malformed URI), return the original value
+    return value;
+  }
+}
+
+/**
+ * Extract parameter names from a path pattern.
+ */
+function extractParamNames(pattern: string): string[] {
+  const paramNames: string[] = [];
+
+  // Match both :param and :param? patterns
+  const paramMatches = pattern.matchAll(/:([^/?]+)/g);
+  for (const match of paramMatches) {
+    const paramName = match[1];
+    if (paramName && !paramNames.includes(paramName)) {
+      paramNames.push(paramName);
+    }
+  }
+
+  return paramNames;
 }
 
 /**
@@ -39,14 +75,7 @@ export function extractParams(url: string, pattern: string): Record<string, stri
     return params;
   }
 
-  const paramNames: string[] = [];
-  const paramMatches = normalizedPattern.matchAll(/:([^/]+)/g);
-  for (const match of paramMatches) {
-    const paramName = match[1]?.replace('?', '');
-    if (paramName) {
-      paramNames.push(paramName);
-    }
-  }
+  const paramNames = extractParamNames(normalizedPattern);
 
   const regex = pathToRegex(normalizedPattern);
   const match = regex.test(normalizedUrl) ? normalizedUrl.match(regex) : null;
@@ -60,8 +89,8 @@ export function extractParams(url: string, pattern: string): Record<string, stri
   for (let i = 0; i < paramNames.length && i < values.length; i++) {
     const paramName = paramNames[i];
     const value = values[i];
-    if (paramName && value !== undefined) {
-      params[paramName] = decodeURIComponent(value);
+    if (paramName && value !== undefined && value !== null) {
+      params[paramName] = safeDecodeURIComponent(value);
     }
   }
 
@@ -70,6 +99,13 @@ export function extractParams(url: string, pattern: string): Record<string, stri
 
 /**
  * Calculate route specificity score.
+ * Higher score = more specific route.
+ *
+ * Scoring:
+ * - Static segments: 1000 points
+ * - Parameter segments (:id): 100 points
+ * - Optional parameters (:id?): 50 points
+ * - Wildcards (*): 1 point
  */
 export function calculateScore(path: string): number {
   let score = 0;
@@ -79,9 +115,17 @@ export function calculateScore(path: string): number {
   for (const segment of segments) {
     if (segment === '*') {
       score += 1;
+    } else if (segment.includes('*')) {
+      // Segment with wildcard like :path*
+      score += 50;
+    } else if (segment.startsWith(':') && segment.endsWith('?')) {
+      // Optional parameter
+      score += 50;
     } else if (segment.startsWith(':')) {
+      // Required parameter
       score += 100;
     } else {
+      // Static segment
       score += 1000;
     }
   }
@@ -90,7 +134,7 @@ export function calculateScore(path: string): number {
 }
 
 /**
- * Rank routes by specificity.
+ * Rank routes by specificity (most specific first).
  */
 export function rankRoutes(routes: RouteDefinition[]): RouteDefinition[] {
   return [...routes].sort((a, b) => {

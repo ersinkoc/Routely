@@ -27,15 +27,19 @@ export class RouterKernel {
   private _routes: RouteDefinition[];
   private _history: History;
   private _basePath: string;
+  private _unsubscribeHistory: (() => void) | null = null;
+  private _isDestroyed = false;
 
   constructor(routes: RouteDefinition[], history: History, basePath: string = '') {
     this._routes = routes;
     this._history = history;
     this._basePath = basePath;
 
-    // Listen to history changes
-    this._history.listen((location) => {
-      this._handleLocationChange(location.pathname);
+    // Listen to history changes and store unsubscribe function
+    this._unsubscribeHistory = this._history.listen((location) => {
+      if (!this._isDestroyed) {
+        void this._handleLocationChange(location.pathname);
+      }
     });
 
     // Perform synchronous initial navigation
@@ -72,7 +76,39 @@ export class RouterKernel {
   }
 
   /**
-   * Handle location changes.
+   * Destroy the router kernel and cleanup resources.
+   */
+  destroy(): void {
+    if (this._isDestroyed) {
+      return;
+    }
+
+    this._isDestroyed = true;
+
+    // Unsubscribe from history changes
+    if (this._unsubscribeHistory) {
+      this._unsubscribeHistory();
+      this._unsubscribeHistory = null;
+    }
+
+    // Clear all listeners
+    this._listeners.clear();
+
+    // Destroy all plugins
+    for (const [name, plugin] of this._plugins) {
+      if (plugin.onDestroy) {
+        try {
+          void plugin.onDestroy();
+        } catch (error) {
+          console.error(`Error destroying plugin "${name}":`, error);
+        }
+      }
+    }
+    this._plugins.clear();
+  }
+
+  /**
+   * Handle location changes with timeout protection.
    */
   private async _handleLocationChange(pathname: string): Promise<void> {
     const strippedPath = stripBasePath(pathname, this._basePath);
@@ -95,7 +131,8 @@ export class RouterKernel {
       meta: match.route.meta || {},
     };
 
-    const allowed = await this._emitBeforeNavigate(route, this._currentRoute);
+    // Add timeout protection for beforeNavigate guards
+    const allowed = await this._emitBeforeNavigateWithTimeout(route, this._currentRoute);
 
     if (!allowed) {
       return;
@@ -108,14 +145,26 @@ export class RouterKernel {
   /**
    * Navigate to a new route.
    */
-  async navigate(to: string | RouteRef, options: NavigateOptions = {}): Promise<void> {
+  async navigate(to: string | RouteRef, options: NavigateOptions = {}): Promise<boolean> {
+    if (this._isDestroyed) {
+      console.warn('Cannot navigate: router has been destroyed');
+      return false;
+    }
+
     const path = typeof to === 'string' ? to : to.path;
     const fullPath = this._basePath ? `${this._basePath}${path}` : path;
 
-    if (options.replace) {
-      this._history.replace(fullPath, options.state);
-    } else {
-      this._history.push(fullPath, options.state);
+    try {
+      if (options.replace) {
+        this._history.replace(fullPath, options.state);
+      } else {
+        this._history.push(fullPath, options.state);
+      }
+      return true;
+    } catch (error) {
+      console.error('Navigation failed:', error);
+      this._emit('error', error);
+      return false;
     }
   }
 
@@ -123,6 +172,7 @@ export class RouterKernel {
    * Navigate back.
    */
   back(): void {
+    if (this._isDestroyed) return;
     this._history.back();
   }
 
@@ -130,6 +180,7 @@ export class RouterKernel {
    * Navigate forward.
    */
   forward(): void {
+    if (this._isDestroyed) return;
     this._history.forward();
   }
 
@@ -137,6 +188,7 @@ export class RouterKernel {
    * Navigate by delta.
    */
   go(delta: number): void {
+    if (this._isDestroyed) return;
     this._history.go(delta);
   }
 
@@ -144,6 +196,10 @@ export class RouterKernel {
    * Register a plugin.
    */
   use(plugin: RouterPlugin): this {
+    if (this._isDestroyed) {
+      throw new Error('Cannot register plugin: router has been destroyed');
+    }
+
     if (this._plugins.has(plugin.name)) {
       throw new Error(`Plugin "${plugin.name}" is already registered`);
     }
@@ -189,7 +245,11 @@ export class RouterKernel {
     }
 
     if (plugin.onDestroy) {
-      void plugin.onDestroy();
+      try {
+        void plugin.onDestroy();
+      } catch (error) {
+        console.error(`Error destroying plugin "${name}":`, error);
+      }
     }
 
     this._plugins.delete(name);
@@ -229,11 +289,13 @@ export class RouterKernel {
    * Emit event to listeners.
    */
   private _emit(event: RouterEvent, ...args: any[]): void {
+    if (this._isDestroyed) return;
+
     const handlers = this._listeners.get(event);
-    if (handlers) {
+    if (handlers && handlers.size > 0) {
       handlers.forEach((handler) => {
         try {
-          handler(...args);
+          void handler(...args);
         } catch (error) {
           console.error(`Error in ${event} handler:`, error);
         }
@@ -242,11 +304,39 @@ export class RouterKernel {
   }
 
   /**
+   * Emit beforeNavigate and check plugin guards with timeout protection.
+   */
+  private async _emitBeforeNavigateWithTimeout(
+    to: Route,
+    from: Route | null
+  ): Promise<boolean> {
+    const TIMEOUT_MS = 5000; // 5 second timeout for guards
+
+    try {
+      // Add timeout protection
+      const result = await Promise.race([
+        this._emitBeforeNavigate(to, from),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => {
+            console.warn('Navigation guard timeout - allowing navigation');
+            resolve(true);
+          }, TIMEOUT_MS)
+        ),
+      ]);
+
+      return result;
+    } catch (error) {
+      console.error('Error in beforeNavigate guards:', error);
+      return false;
+    }
+  }
+
+  /**
    * Emit beforeNavigate and check plugin guards.
    */
   private async _emitBeforeNavigate(to: Route, from: Route | null): Promise<boolean> {
     const handlers = this._listeners.get('beforeNavigate');
-    if (handlers) {
+    if (handlers && handlers.size > 0) {
       for (const handler of handlers) {
         try {
           const result = await handler(to, from);

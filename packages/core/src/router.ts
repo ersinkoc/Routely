@@ -36,7 +36,22 @@ export function createRouter(options: RouterOptions): Router {
 
   const kernel = new RouterKernel(routes, history, basePath);
 
-  return kernel as unknown as Router;
+  // Create a proxy that properly implements the Router interface
+  return new Proxy(kernel as unknown as object, {
+    get(target, prop: keyof Router) {
+      // Handle RouterKernel methods directly
+      if (prop in target) {
+        return (target as RouterKernel)[prop];
+      }
+
+      // Handle destroy from Router interface
+      if (prop === 'destroy') {
+        return () => (target as RouterKernel).destroy();
+      }
+
+      return undefined;
+    },
+  }) as Router;
 }
 
 /**
@@ -62,11 +77,27 @@ export function route(
   children?: RouteDefinition[] | Record<string, unknown>,
   meta?: Record<string, unknown>
 ): RouteDefinition {
+  // Validate component first (fail fast)
+  if (!component) {
+    throw new Error('Route must have a component');
+  }
+
+  // Validate path
+  if (!path || typeof path !== 'string') {
+    throw new Error('Route path must be a non-empty string');
+  }
+
   // Handle overloaded signature
   const actualChildren = Array.isArray(children) ? children : undefined;
   const actualMeta = Array.isArray(children) ? meta : (children as Record<string, unknown> | undefined);
 
+  // Normalize path BEFORE validation
   const normalizedPath = normalizeSlashes(path);
+
+  // Validate normalized path
+  if (normalizedPath !== '*' && !normalizedPath.startsWith('/')) {
+    throw new Error(`Route path must start with "/" or be "*": ${path}`);
+  }
 
   const routeDef: RouteDefinition = {
     path: normalizedPath,
@@ -81,30 +112,7 @@ export function route(
     routeDef.meta = actualMeta;
   }
 
-  validateRoute(routeDef);
-
   return routeDef;
-}
-
-/**
- * Validate a route definition.
- */
-function validateRoute(route: RouteDefinition): void {
-  if (!route.path) {
-    throw new Error('Route path is required');
-  }
-
-  if (route.path !== '*' && !route.path.startsWith('/')) {
-    throw new Error(`Route path must start with "/": ${route.path}`);
-  }
-
-  if (route.path.includes('//')) {
-    throw new Error(`Route path cannot contain "//": ${route.path}`);
-  }
-
-  if (!route.component) {
-    throw new Error(`Route must have a component: ${route.path}`);
-  }
 }
 
 /**
@@ -118,10 +126,11 @@ function flattenRoutes(routes: RouteDefinition[], basePath: string = ''): RouteD
       ? normalizeSlashes(`${basePath}${route.path}`)
       : route.path;
 
+    // Create a new route object without mutating the original
     flattened.push({
-      ...route,
       path: fullPath,
-      children: undefined,
+      component: route.component,
+      meta: route.meta,
     });
 
     if (route.children) {

@@ -3,10 +3,11 @@
  * @packageDocumentation
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Route, RouteRef, NavigateOptions } from '@oxog/routely-core';
 import { useRouterContext } from './context.js';
 import type { NavigateFunction } from './types.js';
+import { stringifySearch } from '@oxog/routely-core';
 
 /**
  * Hook to get navigation function.
@@ -28,10 +29,11 @@ export function useNavigate(): NavigateFunction {
     ((to: string | number | RouteRef, options?: NavigateOptions) => {
       if (typeof to === 'number') {
         router.go(to);
-      } else if (typeof to === 'string') {
-        router.navigate(to, options);
       } else {
-        router.navigate(to, options);
+        // Handle navigation errors gracefully
+        void router.navigate(to, options).catch((error) => {
+          console.error('Navigation failed:', error);
+        });
       }
     }) as NavigateFunction,
     [router]
@@ -78,4 +80,51 @@ export function useRoute(): Route {
     throw new Error('useRoute called but no route is currently matched');
   }
   return currentRoute;
+}
+
+/**
+ * Hook to get search params with setter.
+ *
+ * @returns Search params and setter function
+ *
+ * @example
+ * ```tsx
+ * function Products() {
+ *   const [search, setSearch] = useSearch();
+ *   return (
+ *     <div>
+ *       <input
+ *         value={search.q || ''}
+ *         onChange={(e) => setSearch({ ...search, q: e.target.value })}
+ *       />
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+export function useSearch<T extends Record<string, string | string[]> = Record<string, string | string[]>>():
+  [T, (value: T | ((prev: T) => T)) => void]
+{
+  const { router, currentRoute } = useRouterContext();
+  const [search, setSearch] = useState<T>(currentRoute?.search as T ?? {} as T);
+
+  // Update search when currentRoute changes
+  useEffect(() => {
+    if (currentRoute) {
+      setSearch(currentRoute.search as T);
+    }
+  }, [currentRoute]);
+
+  const updateSearch = useCallback((value: T | ((prev: T) => T)) => {
+    const newValue = typeof value === 'function' ? (value as (prev: T) => T)(search) : value;
+
+    // Update URL with new search params
+    const searchStr = stringifySearch(newValue);
+    const currentPath = router.history.location.pathname;
+    const newPath = `${currentPath}?${searchStr}${router.history.location.hash}`;
+
+    void router.navigate(newPath, { replace: true });
+  }, [router, search]);
+
+  return [search, updateSearch];
 }

@@ -38,6 +38,10 @@ export function createBrowserHistory(): History {
     listeners.forEach((listener) => listener(loc));
   };
 
+  const handlePopState = () => {
+    notifyListeners();
+  };
+
   const push = (path: string, state?: unknown) => {
     window.history.pushState(state, '', path);
     notifyListeners();
@@ -54,10 +58,21 @@ export function createBrowserHistory(): History {
 
   const listen = (listener: LocationListener) => {
     listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
 
-  window.addEventListener('popstate', notifyListeners);
+    // Add event listener only when the first listener is registered
+    if (listeners.size === 1) {
+      window.addEventListener('popstate', handlePopState);
+    }
+
+    return () => {
+      listeners.delete(listener);
+
+      // Remove event listener when no more listeners
+      if (listeners.size === 0) {
+        window.removeEventListener('popstate', handlePopState);
+      }
+    };
+  };
 
   return {
     location,
@@ -110,8 +125,10 @@ export function createMemoryHistory(options?: MemoryHistoryOptions): History {
   };
 
   const push = (path: string, _state?: unknown) => {
-    index++;
-    entries.splice(index, entries.length - index, path);
+    // Remove all entries after current index before pushing
+    entries.splice(index + 1);
+    entries.push(path);
+    index = entries.length - 1;
     notifyListeners();
   };
 
@@ -186,16 +203,18 @@ export function createHashHistory(): History {
     listeners.forEach((listener) => listener(loc));
   };
 
+  const handleHashChange = () => {
+    notifyListeners();
+  };
+
   const push = (path: string, _state?: unknown) => {
     window.location.hash = path;
-    notifyListeners();
   };
 
   const replace = (path: string, _state?: unknown) => {
     const index = window.location.href.indexOf('#');
     const base = index >= 0 ? window.location.href.slice(0, index) : window.location.href;
     window.location.replace(`${base}#${path}`);
-    notifyListeners();
   };
 
   const go = (delta: number) => {
@@ -204,10 +223,21 @@ export function createHashHistory(): History {
 
   const listen = (listener: LocationListener) => {
     listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
 
-  window.addEventListener('hashchange', notifyListeners);
+    // Add event listener only when the first listener is registered
+    if (listeners.size === 1) {
+      window.addEventListener('hashchange', handleHashChange);
+    }
+
+    return () => {
+      listeners.delete(listener);
+
+      // Remove event listener when no more listeners
+      if (listeners.size === 0) {
+        window.removeEventListener('hashchange', handleHashChange);
+      }
+    };
+  };
 
   return {
     location,

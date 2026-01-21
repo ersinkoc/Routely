@@ -112,4 +112,16 @@ describe('createRoutes', () => {
     expect(typeof routes.users.root.path).toBe('string');
     expect(typeof routes.users.create.path).toBe('string');
   });
+
+  it('should return undefined for non-string/non-object properties', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    // Access a non-existent property - proxy should return undefined
+    // @ts-ignore - testing undefined behavior
+    expect(routes.nonExistent).toBeUndefined();
+  });
 });

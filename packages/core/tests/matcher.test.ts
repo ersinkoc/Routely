@@ -5,8 +5,10 @@ import {
   calculateScore,
   rankRoutes,
   matchRoute,
+  RouteMatcher,
 } from '../src/matcher';
 import { route } from '../src/router';
+import type { RouteDefinition } from '../src/types';
 
 describe('pathToRegex', () => {
   it('should convert static path to regex', () => {
@@ -26,6 +28,27 @@ describe('pathToRegex', () => {
     expect(regex.test('/blog/post')).toBe(true);
     expect(regex.test('/blog/2024/post')).toBe(true);
   });
+
+  it('should handle * wildcard', () => {
+    const regex = pathToRegex('*');
+    expect(regex.test('/')).toBe(true);
+    expect(regex.test('/users')).toBe(true);
+    expect(regex.test('/users/123')).toBe(true);
+    expect(regex.test('')).toBe(false);
+  });
+
+  it('should handle /* wildcard', () => {
+    const regex = pathToRegex('/*');
+    expect(regex.test('/')).toBe(true);
+    expect(regex.test('/users')).toBe(true);
+    expect(regex.test('/users/123')).toBe(true);
+  });
+
+  it('should handle special regex characters', () => {
+    const regex = pathToRegex('/users/profile.com');
+    expect(regex.test('/users/profile.com')).toBe(true);
+    expect(regex.test('/users/profileXcom')).toBe(false);
+  });
 });
 
 describe('extractParams', () => {
@@ -43,6 +66,22 @@ describe('extractParams', () => {
     const params = extractParams('/users', '/users');
     expect(params).toEqual({});
   });
+
+  it('should decode URI encoded params', () => {
+    const params = extractParams('/users/hello%20world', '/users/:name');
+    expect(params).toEqual({ name: 'hello world' });
+  });
+
+  it('should return empty when URL does not match pattern', () => {
+    const params = extractParams('/posts/123', '/users/:id');
+    expect(params).toEqual({});
+  });
+
+  it('should handle wildcard routes', () => {
+    const params = extractParams('/blog/2024/post', '/blog/*');
+    // Wildcards don't extract params by default
+    expect(params).toEqual({});
+  });
 });
 
 describe('calculateScore', () => {
@@ -56,6 +95,19 @@ describe('calculateScore', () => {
 
   it('should score wildcards lowest', () => {
     expect(calculateScore('/*')).toBe(1);
+  });
+
+  it('should score mixed routes correctly', () => {
+    expect(calculateScore('/users/:id/posts/:postId')).toBe(2200);
+    expect(calculateScore('/users/:id/posts/edit')).toBe(3100); // 3 static (users, posts, edit) + 1 dynamic (:id) = 3100
+  });
+
+  it('should score root path', () => {
+    expect(calculateScore('/')).toBe(0);
+  });
+
+  it('should score * wildcard', () => {
+    expect(calculateScore('*')).toBe(1);
   });
 });
 
@@ -108,5 +160,91 @@ describe('matchRoute', () => {
     const match = matchRoute('/users/profile', routes);
 
     expect(match?.route.path).toBe('/users/profile');
+  });
+
+  it('should handle wildcard routes', () => {
+    const routes = [route('*', () => null)];
+    const match = matchRoute('/anything/here', routes);
+
+    expect(match).toBeDefined();
+    expect(match?.route.path).toBe('*');
+  });
+
+  it('should handle /* wildcard routes', () => {
+    const routes = [route('/*', () => null)];
+    const match = matchRoute('/anything/here', routes);
+
+    expect(match).toBeDefined();
+    expect(match?.route.path).toBe('/*');
+  });
+});
+
+describe('RouteMatcher', () => {
+  it('should cache match results', () => {
+    const routes = [route('/users/:id', () => null)];
+    const matcher = new RouteMatcher();
+
+    const match1 = matcher.match('/users/123', routes);
+    const match2 = matcher.match('/users/123', routes);
+
+    expect(match1).toEqual(match2);
+    expect(match1?.params).toEqual({ id: '123' });
+  });
+
+  it('should return cached result for same URL', () => {
+    const routes = [route('/users/:id', () => null)];
+    const matcher = new RouteMatcher();
+
+    matcher.match('/users/123', routes);
+
+    // Second call should use cache
+    const match = matcher.match('/users/123', routes);
+
+    expect(match).toBeDefined();
+    expect(match?.params).toEqual({ id: '123' });
+  });
+
+  it('should cache null for no match', () => {
+    const routes = [route('/users', () => null)];
+    const matcher = new RouteMatcher();
+
+    const match1 = matcher.match('/posts', routes);
+    const match2 = matcher.match('/posts', routes);
+
+    expect(match1).toBeNull();
+    expect(match2).toBeNull();
+  });
+
+  it('should clear cache', () => {
+    const routes = [route('/users/:id', () => null)];
+    const matcher = new RouteMatcher();
+
+    matcher.match('/users/123', routes);
+    matcher.clearCache();
+
+    // After clearing, should re-match (not cached)
+    const match = matcher.match('/users/456', routes);
+
+    expect(match?.params).toEqual({ id: '456' });
+  });
+
+  it('should handle different routes separately', () => {
+    const routes = [route('/users/:id', () => null), route('/posts/:id', () => null)];
+    const matcher = new RouteMatcher();
+
+    const userMatch = matcher.match('/users/123', routes);
+    const postMatch = matcher.match('/posts/456', routes);
+
+    expect(userMatch?.route.path).toBe('/users/:id');
+    expect(postMatch?.route.path).toBe('/posts/:id');
+  });
+
+  it('should handle empty routes array', () => {
+    const routes: RouteDefinition[] = [];
+    const matcher = new RouteMatcher();
+
+    const match = matcher.match('/users', routes);
+
+    expect(match).toBeNull();
   });
 });

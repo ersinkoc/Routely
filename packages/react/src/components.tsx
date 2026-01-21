@@ -6,7 +6,32 @@
 import type { ReactElement } from 'react';
 import { useNavigate } from './hooks.js';
 import { useRouterContext } from './context.js';
+import { matchRoute } from '@oxog/routely-core';
 import type { LinkProps } from './types.js';
+
+/**
+ * Check if a link href matches the current route.
+ * Handles both static and dynamic routes properly.
+ */
+function isLinkActive(href: string, currentPath: string, routes: any[]): boolean {
+  // First try exact match for static routes
+  if (href === currentPath) {
+    return true;
+  }
+
+  // For dynamic routes, check if current path matches the link's pattern
+  // by matching against all routes
+  for (const route of routes) {
+    if (route.path === href) {
+      const match = matchRoute(currentPath, [route]);
+      if (match) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 /**
  * Link component for navigation.
@@ -26,10 +51,10 @@ export function Link({
   ...props
 }: LinkProps): ReactElement {
   const navigate = useNavigate();
-  const { currentRoute } = useRouterContext();
+  const { currentRoute, router } = useRouterContext();
 
   const href = typeof to === 'string' ? to : to.path;
-  const isActive = currentRoute?.path === href;
+  const isActive = currentRoute && isLinkActive(href, currentRoute.path, router.routes);
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Allow default behavior if:
@@ -47,14 +72,15 @@ export function Link({
       return;
     }
 
-    e.preventDefault();
-
+    // Call onClick first - it can prevent default by calling e.preventDefault()
     if (onClick) {
       onClick(e);
     }
 
+    // Only proceed if onClick didn't prevent default
     if (!e.defaultPrevented) {
-      navigate(to, { replace, state });
+      e.preventDefault();
+      void navigate(to, { replace, state });
     }
   };
 
@@ -67,6 +93,22 @@ export function Link({
       {children}
     </a>
   );
+}
+
+/**
+ * Props passed to route components rendered by Outlet.
+ */
+export interface OutletProps {
+  /** Matched route parameters */
+  params: Record<string, string>;
+  /** Parsed search/query parameters */
+  search: Record<string, string | string[]>;
+  /** URL hash (without #) */
+  hash: string;
+  /** State data passed during navigation */
+  state: unknown;
+  /** Route metadata */
+  meta: Record<string, unknown>;
 }
 
 /**
@@ -91,13 +133,23 @@ export function Outlet(): ReactElement | null {
     return null;
   }
 
-  const matchedRoute = router.routes.find((r) => r.path === currentRoute.path);
+  // Find the matching route using matchRoute for dynamic route support
+  const match = matchRoute(currentRoute.path, router.routes);
 
-  if (!matchedRoute || !matchedRoute.component) {
+  if (!match || !match.route.component) {
     return null;
   }
 
-  const Component = matchedRoute.component;
+  const Component = match.route.component;
 
-  return <Component />;
+  // Pass props to the component
+  const outletProps: OutletProps = {
+    params: currentRoute.params,
+    search: currentRoute.search,
+    hash: currentRoute.hash,
+    state: currentRoute.state,
+    meta: currentRoute.meta,
+  };
+
+  return <Component {...outletProps} />;
 }
