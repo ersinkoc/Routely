@@ -45,7 +45,7 @@ export class RouterErrorBoundary extends Component<
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any): void {
+  override componentDidCatch(error: Error, errorInfo: any): void {
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     } else {
@@ -53,7 +53,7 @@ export class RouterErrorBoundary extends Component<
     }
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (this.state.hasError) {
       const Fallback = this.props.fallback;
 

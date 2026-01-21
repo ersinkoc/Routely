@@ -31,9 +31,12 @@ export function useNavigate(): NavigateFunction {
         router.go(to);
       } else {
         // Handle navigation errors gracefully
-        void router.navigate(to, options).catch((error) => {
-          console.error('Navigation failed:', error);
-        });
+        const result = router.navigate(to, options);
+        if (result && typeof result.catch === 'function') {
+          result.catch((error: Error) => {
+            console.error('Navigation failed:', error);
+          });
+        }
       }
     }) as NavigateFunction,
     [router]

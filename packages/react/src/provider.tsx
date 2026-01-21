@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { useState, useMemo, useLayoutEffect } from 'react';
+import { useState, useMemo, useLayoutEffect, useEffect } from 'react';
 import type { Route } from '@oxog/routely-core';
 import { RouterContext } from './context.js';
 import type { RouterProviderProps } from './types.js';

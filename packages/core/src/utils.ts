@@ -152,7 +152,7 @@ export function parseSearch(search: string): Record<string, string | string[]> {
       const existing = result[decodedKey];
       if (Array.isArray(existing)) {
         existing.push(decodedValue);
-      } else {
+      } else if (existing !== undefined) {
         result[decodedKey] = [existing, decodedValue];
       }
     } else {
