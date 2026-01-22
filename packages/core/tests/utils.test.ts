@@ -177,6 +177,69 @@ describe('parseSearch', () => {
     const result = parseSearch('?key=');
     expect(result).toEqual({ key: '' });
   });
+
+  // Test for empty key handling (line 145)
+  it('should skip empty keys in query string', () => {
+    const result = parseSearch('?key1=value1&=&key2=value2');
+    expect(result).toEqual({ key1: 'value1', key2: 'value2' });
+  });
+
+  it('should handle query string with only empty keys', () => {
+    const result = parseSearch('?=&=');
+    expect(result).toEqual({});
+  });
+
+  it('should handle query string starting with &', () => {
+    const result = parseSearch('&key=value');
+    expect(result).toEqual({ key: 'value' });
+  });
+
+  it('should handle query string ending with &', () => {
+    const result = parseSearch('key=value&');
+    expect(result).toEqual({ key: 'value' });
+  });
+
+  it('should handle query string with multiple &&', () => {
+    const result = parseSearch('key1=value1&&key2=value2');
+    expect(result).toEqual({ key1: 'value1', key2: 'value2' });
+  });
+
+  // Test for malformed URI decoding (lines 103-109 coverage)
+  it('should handle malformed URI encoding gracefully', () => {
+    // Invalid URI encoding should return original value instead of crashing
+    const result = parseSearch('?key=%ZZ');
+    // decodeURIComponent('%ZZ') would throw, but safeDecodeURIComponent returns original
+    expect(result).toEqual({ key: '%ZZ' });
+  });
+
+  it('should handle malformed URI component in value', () => {
+    const result = parseSearch('?key=value%ZZ%20test');
+    expect(result).toEqual({ key: 'value%ZZ%20test' });
+  });
+
+  it('should handle partially malformed URI', () => {
+    const result = parseSearch('?name=John%20Doe&bad=%ZZ&email=test@example.com');
+    expect(result.name).toBe('John Doe');
+    expect(result.bad).toBe('%ZZ');
+    expect(result.email).toBe('test@example.com');
+  });
+
+  // Test for array handling (line 154 coverage)
+  it('should convert existing string to array when same key appears again', () => {
+    const result = parseSearch('?tags=react&tags=vue');
+    expect(result.tags).toEqual(['react', 'vue']);
+  });
+
+  it('should append to existing array when same key appears multiple times', () => {
+    const result = parseSearch('?tags=react&tags=vue&tags=angular');
+    expect(result.tags).toEqual(['react', 'vue', 'angular']);
+  });
+
+  it('should handle mix of string and array conversion', () => {
+    const result = parseSearch('?color=red&color=blue&size=large');
+    expect(result.color).toEqual(['red', 'blue']);
+    expect(result.size).toBe('large');
+  });
 });
 
 describe('stringifySearch', () => {
@@ -207,6 +270,37 @@ describe('stringifySearch', () => {
   it('should skip null values', () => {
     const result = stringifySearch({ page: '1', sort: null as any });
     expect(result).toBe('page=1');
+  });
+
+  // Test for array handling (lines 190-194 coverage)
+  it('should handle array values', () => {
+    const result = stringifySearch({ tags: ['react', 'vue'] });
+    expect(result).toBe('tags=react&tags=vue');
+  });
+
+  it('should handle array with single element', () => {
+    const result = stringifySearch({ tags: ['react'] });
+    expect(result).toBe('tags=react');
+  });
+
+  it('should handle array with many elements', () => {
+    const result = stringifySearch({ ids: ['1', '2', '3', '4', '5'] });
+    expect(result).toBe('ids=1&ids=2&ids=3&ids=4&ids=5');
+  });
+
+  it('should skip null/undefined items in array', () => {
+    const result = stringifySearch({ tags: ['react', null as any, 'vue', undefined] });
+    expect(result).toBe('tags=react&tags=vue');
+  });
+
+  it('should handle mixed array and string values', () => {
+    const result = stringifySearch({ tags: ['react', 'vue'], page: '1' });
+    expect(result).toBe('tags=react&tags=vue&page=1');
+  });
+
+  it('should encode array items with special characters', () => {
+    const result = stringifySearch({ emails: ['test@example.com', 'user@domain.org'] });
+    expect(result).toBe('emails=test%40example.com&emails=user%40domain.org');
   });
 });
 

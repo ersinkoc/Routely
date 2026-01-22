@@ -151,8 +151,10 @@ describe('RouterKernel', () => {
         },
       };
 
-      kernel.use(plugin);
+      // Plugin now throws on installation failure
+      expect(() => kernel.use(plugin)).toThrow();
 
+      // Error should still be emitted
       expect(errorHandler).toHaveBeenCalled();
     });
 
@@ -169,8 +171,10 @@ describe('RouterKernel', () => {
         onError,
       };
 
-      kernel.use(plugin);
+      // Plugin now throws on installation failure
+      expect(() => kernel.use(plugin)).toThrow();
 
+      // Plugin's onError should still be called
       expect(onError).toHaveBeenCalled();
     });
 
@@ -188,7 +192,8 @@ describe('RouterKernel', () => {
         },
       };
 
-      kernel.use(plugin);
+      // Plugin now throws on installation failure
+      expect(() => kernel.use(plugin)).toThrow();
 
       expect(errorHandler).toHaveBeenCalled();
       const errorArg = errorHandler.mock.calls[0][0];
@@ -202,12 +207,16 @@ describe('RouterKernel', () => {
       const history = createMemoryHistory({ initialEntries: ['/'] });
       const kernel = new RouterKernel([createTestRoute('/'), createTestRoute('/users')], history);
 
+      // Wait for constructor to complete (uses queueMicrotask)
+      await new Promise(resolve => setImmediate(resolve));
+
       const handler = vi.fn();
       const unsubscribe = kernel.on('afterNavigate', handler);
 
       await kernel.navigate('/users');
 
-      // Wait a tick for async operations
+      // Wait for async operations (queueMicrotask + navigation)
+      await new Promise(resolve => setImmediate(resolve));
       await new Promise(resolve => setImmediate(resolve));
 
       expect(handler).toHaveBeenCalled();
@@ -216,18 +225,25 @@ describe('RouterKernel', () => {
       unsubscribe();
       await kernel.navigate('/');
       await new Promise(resolve => setImmediate(resolve));
+      await new Promise(resolve => setImmediate(resolve));
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it('should manually remove event listener with off', () => {
+    it('should manually remove event listener with off', async () => {
       const history = createMemoryHistory();
       const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
 
       const handler = vi.fn();
       kernel.on('afterNavigate', handler);
 
       kernel.off('afterNavigate', handler);
-      kernel.navigate('/');
+      await kernel.navigate('/');
+
+      // Wait for async operations
+      await new Promise(resolve => setImmediate(resolve));
 
       expect(handler).not.toHaveBeenCalled();
     });
@@ -238,6 +254,9 @@ describe('RouterKernel', () => {
         [createTestRoute('/'), createTestRoute('/users')],
         history
       );
+
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
 
       const beforeHandler = vi.fn();
       kernel.on('beforeNavigate', beforeHandler);
@@ -254,6 +273,9 @@ describe('RouterKernel', () => {
         history
       );
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       kernel.on('beforeNavigate', () => false);
 
       const initialRoute = kernel.currentRoute;
@@ -268,6 +290,9 @@ describe('RouterKernel', () => {
         [createTestRoute('/'), createTestRoute('/users')],
         history
       );
+
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
 
       const onBeforeNavigate = vi.fn(() => true);
       const plugin: RouterPlugin = {
@@ -289,6 +314,9 @@ describe('RouterKernel', () => {
         history
       );
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       const plugin: RouterPlugin = {
         name: 'guard-plugin',
         install: vi.fn(),
@@ -309,6 +337,9 @@ describe('RouterKernel', () => {
         history
       );
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       kernel.on('beforeNavigate', () => {
         throw new Error('Handler error');
       });
@@ -326,6 +357,9 @@ describe('RouterKernel', () => {
         [createTestRoute('/'), createTestRoute('/users')],
         history
       );
+
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
 
       const onError = vi.fn();
       const plugin: RouterPlugin = {
@@ -352,6 +386,9 @@ describe('RouterKernel', () => {
         history
       );
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       const onError = vi.fn();
       const plugin: RouterPlugin = {
         name: 'guard-plugin',
@@ -377,6 +414,9 @@ describe('RouterKernel', () => {
       const history = createMemoryHistory();
       const kernel = new RouterKernel([createTestRoute('/')], history);
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       const errorHandler = vi.fn();
       kernel.on('error', errorHandler);
 
@@ -394,6 +434,9 @@ describe('RouterKernel', () => {
         history
       );
 
+      // Wait for constructor to complete
+      await new Promise(resolve => setImmediate(resolve));
+
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       kernel.on('afterNavigate', () => {
@@ -402,7 +445,8 @@ describe('RouterKernel', () => {
 
       // Navigation should still complete despite the error in handler
       await kernel.navigate('/users');
-      // Wait for async operations
+      // Wait for async operations (queueMicrotask + navigation)
+      await new Promise(resolve => setImmediate(resolve));
       await new Promise(resolve => setImmediate(resolve));
 
       expect(kernel.currentRoute?.path).toBe('/users');
@@ -510,6 +554,255 @@ describe('RouterKernel', () => {
       await kernel.navigate('/users');
 
       expect(history.location.pathname).toBe('/app/users');
+    });
+
+    // Navigation validation tests
+    it('should return false when navigating to null target', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate(null as any);
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating to undefined target', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate(undefined as any);
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with empty string path', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('');
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with excessively long path', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+      const longPath = '/test/' + 'a'.repeat(3000);
+
+      const result = await kernel.navigate(longPath);
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with null bytes in path', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('/test\0path');
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with control characters in path', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('/test\x01path');
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with dangerous protocol', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('javascript:alert(1)');
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with data protocol', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('data:text/html,<script>alert(1)</script>');
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should return false when navigating with invalid options', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const initialRoute = kernel.currentRoute;
+
+      const result = await kernel.navigate('/test', 'invalid' as any);
+
+      expect(result).toBe(false);
+      expect(kernel.currentRoute).toBe(initialRoute);
+    });
+
+    it('should emit error when navigation fails', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      const errorHandler = vi.fn();
+      kernel.on('error', errorHandler);
+
+      // Make push fail by throwing
+      vi.spyOn(history, 'push').mockImplementation(() => {
+        throw new Error('Navigation failed');
+      });
+
+      await kernel.navigate('/test');
+
+      expect(errorHandler).toHaveBeenCalled();
+    });
+
+    // Destroyed router tests
+    it('should return false when navigating on destroyed router', async () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      kernel.destroy();
+
+      const result = await kernel.navigate('/test');
+
+      expect(result).toBe(false);
+    });
+
+    it('should not call history back when router is destroyed', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const backSpy = vi.spyOn(history, 'back');
+
+      kernel.destroy();
+      kernel.back();
+
+      expect(backSpy).not.toHaveBeenCalled();
+    });
+
+    it('should not call history forward when router is destroyed', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const forwardSpy = vi.spyOn(history, 'forward');
+
+      kernel.destroy();
+      kernel.forward();
+
+      expect(forwardSpy).not.toHaveBeenCalled();
+    });
+
+    it('should not call history go when router is destroyed', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const goSpy = vi.spyOn(history, 'go');
+
+      kernel.destroy();
+      kernel.go(1);
+
+      expect(goSpy).not.toHaveBeenCalled();
+    });
+
+    // go() validation tests
+    it('should not call history go with non-number delta', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const goSpy = vi.spyOn(history, 'go');
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      kernel.go('1' as any);
+
+      expect(goSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Navigation delta must be a number');
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should not call history go with infinite delta', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const goSpy = vi.spyOn(history, 'go');
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      kernel.go(Infinity);
+
+      expect(goSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Navigation delta must be a finite number');
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should not call history go with NaN delta', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+      const goSpy = vi.spyOn(history, 'go');
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      kernel.go(NaN);
+
+      expect(goSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Navigation delta must be a finite number');
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    // Plugin validation tests
+    it('should throw error when registering plugin on destroyed router', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      kernel.destroy();
+
+      const plugin: RouterPlugin = {
+        name: 'test-plugin',
+        install: vi.fn(),
+      };
+
+      expect(() => kernel.use(plugin)).toThrow('Cannot register plugin: router has been destroyed');
+    });
+
+    it('should throw error when registering non-object plugin', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      expect(() => kernel.use(null as any)).toThrow(TypeError('Plugin must be an object'));
+    });
+
+    it('should throw error when registering plugin with empty name', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      const plugin: RouterPlugin = {
+        name: '',
+        install: vi.fn(),
+      };
+
+      expect(() => kernel.use(plugin)).toThrow(TypeError('Plugin must have a non-empty name property'));
+    });
+
+    it('should throw error when registering plugin without install method', () => {
+      const history = createMemoryHistory();
+      const kernel = new RouterKernel([createTestRoute('/')], history);
+
+      const plugin = { name: 'test-plugin' } as RouterPlugin;
+
+      expect(() => kernel.use(plugin)).toThrow(TypeError('Plugin "test-plugin" must have an install method'));
     });
   });
 });

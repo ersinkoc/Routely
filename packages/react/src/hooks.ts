@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import type { Route, RouteRef, NavigateOptions } from '@oxog/routely-core';
 import { useRouterContext } from './context.js';
 import type { NavigateFunction } from './types.js';
@@ -27,16 +27,31 @@ export function useNavigate(): NavigateFunction {
 
   return useCallback(
     ((to: string | number | RouteRef, options?: NavigateOptions) => {
+      // Runtime validation for number delta
       if (typeof to === 'number') {
-        router.go(to);
-      } else {
-        // Handle navigation errors gracefully
-        const result = router.navigate(to, options);
-        if (result && typeof result.catch === 'function') {
-          result.catch((error: Error) => {
-            console.error('Navigation failed:', error);
-          });
+        // Validate delta is finite
+        if (!Number.isFinite(to)) {
+          console.error('Navigation delta must be a finite number');
+          return;
         }
+        router.go(to);
+      } else if (typeof to === 'string') {
+        // Validate string target
+        if (!to || to.length === 0) {
+          console.error('Navigation target cannot be empty');
+          return;
+        }
+        // Handle navigation errors gracefully
+        void router.navigate(to, options).catch((error: Error) => {
+          console.error('Navigation failed:', error);
+        });
+      } else if (to && typeof to === 'object') {
+        // Handle RouteRef
+        void router.navigate(to, options).catch((error: Error) => {
+          console.error('Navigation failed:', error);
+        });
+      } else {
+        console.error('Invalid navigation target:', to);
       }
     }) as NavigateFunction,
     [router]
@@ -109,25 +124,61 @@ export function useSearch<T extends Record<string, string | string[]> = Record<s
   [T, (value: T | ((prev: T) => T)) => void]
 {
   const { router, currentRoute } = useRouterContext();
-  const [search, setSearch] = useState<T>(currentRoute?.search as T ?? {} as T);
+  const [search, setSearchState] = useState<T>(currentRoute?.search as T ?? {} as T);
 
   // Update search when currentRoute changes
   useEffect(() => {
     if (currentRoute) {
-      setSearch(currentRoute.search as T);
+      setSearchState(currentRoute.search as T);
     }
   }, [currentRoute]);
 
+  // Use ref to track pending navigation to prevent race conditions
+  const navigationPendingRef = useRef(false);
+
   const updateSearch = useCallback((value: T | ((prev: T) => T)) => {
-    const newValue = typeof value === 'function' ? (value as (prev: T) => T)(search) : value;
+    // Validate input
+    if (value === null || value === undefined) {
+      throw new Error('useSearch update value cannot be null or undefined');
+    }
 
-    // Update URL with new search params
-    const searchStr = stringifySearch(newValue);
-    const currentPath = router.history.location.pathname;
-    const newPath = `${currentPath}?${searchStr}${router.history.location.hash}`;
+    // Prevent concurrent navigation updates
+    if (navigationPendingRef.current) {
+      console.warn('Navigation update already in progress, ignoring concurrent update');
+      return;
+    }
 
-    void router.navigate(newPath, { replace: true });
-  }, [router, search]);
+    // Use functional update with setState to get latest value
+    setSearchState((prevSearch) => {
+      let newValue: T;
+      try {
+        newValue = typeof value === 'function' ? (value as (prev: T) => T)(prevSearch) : value;
+      } catch (error) {
+        console.error('Error calculating new search params:', error);
+        return prevSearch; // Return previous value if calculation fails
+      }
+
+      // Update URL with new search params
+      const searchStr = stringifySearch(newValue);
+      const currentPath = router.history.location.pathname;
+      const newPath = `${currentPath}?${searchStr}${router.history.location.hash}`;
+
+      navigationPendingRef.current = true;
+
+      void router.navigate(newPath, { replace: true })
+        .catch((err: Error) => {
+          console.error('Failed to update search params:', err);
+          // Revert state on error
+          setSearchState(prevSearch);
+        })
+        .finally(() => {
+          navigationPendingRef.current = false;
+        });
+
+      // Return new value immediately (optimistic update)
+      return newValue;
+    });
+  }, [router]);
 
   return [search, updateSearch];
 }

@@ -161,7 +161,48 @@ interface CompiledGuardEntry {
 /**
  * Global plugin options (stored on the router).
  */
-const GUARDS_PLUGIN_OPTIONS = Symbol.for('guards-plugin-options');
+const GUARDS_PLUGIN_OPTIONS = Symbol('guards-plugin-options');
+
+/**
+ * Validate that a redirect path is safe.
+ * Prevents XSS attacks via javascript: and data: URLs.
+ *
+ * @param path - The redirect path to validate
+ * @returns true if the path is safe
+ */
+function isValidRedirectPath(path: string): boolean {
+  if (typeof path !== 'string') {
+    return false;
+  }
+
+  // Path must start with /
+  if (!path.startsWith('/')) {
+    return false;
+  }
+
+  // Block dangerous protocols
+  const dangerousProtocols = /^(javascript|data|vbscript|file):/i;
+  if (dangerousProtocols.test(path)) {
+    return false;
+  }
+
+  // Block HTML entities
+  if (path.includes('<') || path.includes('>')) {
+    return false;
+  }
+
+  // Block on* attributes (XSS attempts)
+  if (/on\w+\s*=/i.test(path)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Maximum allowed pattern length to prevent ReDoS attacks.
+ */
+const MAX_PATTERN_LENGTH = 500;
 
 /**
  * Convert a pattern string to a regex for matching.
@@ -174,6 +215,33 @@ const GUARDS_PLUGIN_OPTIONS = Symbol.for('guards-plugin-options');
  * ```
  */
 function patternToRegex(pattern: string): RegExp {
+  // Validate pattern type
+  if (typeof pattern !== 'string') {
+    throw new TypeError(`Pattern must be a string, got ${typeof pattern}`);
+  }
+
+  // Limit pattern length to prevent ReDoS attacks
+  if (pattern.length > MAX_PATTERN_LENGTH) {
+    throw new Error(`Pattern too long (max ${MAX_PATTERN_LENGTH} characters): ${pattern.substring(0, 50)}...`);
+  }
+
+  // Validate pattern structure
+  if (pattern.length === 0) {
+    throw new Error('Pattern cannot be empty');
+  }
+
+  // Check for suspicious patterns that might cause ReDoS
+  // Use string operations for better reliability
+  if (/\*\*/.test(pattern)) {
+    throw new Error(`Pattern contains multiple consecutive wildcards that may cause performance issues: ${pattern}`);
+  }
+
+  // Count consecutive params (e.g., :a:b:c...)
+  const consecutiveParams = pattern.match(/:[^/\\s]+/g);
+  if (consecutiveParams && consecutiveParams.length > 20) {
+    throw new Error(`Pattern contains too many consecutive params (max 20): ${pattern}`);
+  }
+
   // Escape special regex characters except for * and :
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 
@@ -262,6 +330,7 @@ function normalizeGuardResult(result: GuardResult): { allowed: boolean; redirect
  * - Wildcard patterns for nested routes
  * - Redirect on guard failure
  * - Default redirect configuration
+ * - Redirect loop prevention
  *
  * @param options - Plugin configuration options
  * @returns A router plugin for route guards
@@ -293,6 +362,10 @@ export function guardsPlugin(options: GuardsPluginOptions): RouterPlugin {
   const compiledGuards = compileGuards(options);
   const defaultRedirect = options.defaultRedirect || '/';
 
+  // Store original navigate reference for redirect handling
+  let originalNavigate: Router['navigate'] | null = null;
+  let isNavigatingToRedirect = false;
+
   return {
     name: 'guards',
     version: '1.0.0',
@@ -304,11 +377,26 @@ export function guardsPlugin(options: GuardsPluginOptions): RouterPlugin {
         defaultRedirect,
       };
 
-      // Hook into the router's navigation
-      const originalNavigate = router.navigate.bind(router);
-      router.navigate = async (to: string, navigateOptions?: any) => {
+      // Store the original navigate method before wrapping
+      // This allows us to call it for redirects without triggering guards again
+      if (!originalNavigate) {
+        originalNavigate = router.navigate.bind(router);
+      }
+
+      // Wrap the navigate method to intercept navigation calls
+      const wrappedNavigate: Router['navigate'] = async (to, options = {}) => {
+        const path = typeof to === 'string' ? to : to.path;
+
+        // Skip guard checks if we're navigating due to a redirect
+        // This prevents infinite loops where:
+        // 1. Route A redirects to Route B
+        // 2. Route B also redirects (possibly back to A)
+        if (isNavigatingToRedirect) {
+          return originalNavigate!(to, options);
+        }
+
         // Find matching guards for the target path
-        const matchingGuards = findMatchingGuards(to, compiledGuards);
+        const matchingGuards = findMatchingGuards(path, compiledGuards);
 
         // Execute all matching guards
         for (const entry of matchingGuards) {
@@ -316,17 +404,45 @@ export function guardsPlugin(options: GuardsPluginOptions): RouterPlugin {
           const normalized = normalizeGuardResult(result);
 
           if (!normalized.allowed) {
-            // Guard rejected - redirect
+            // Guard rejected - redirect to configured path
             const redirect = normalized.redirect || entry.redirect || defaultRedirect;
 
-            // Call original navigate with redirect
-            return originalNavigate(redirect, navigateOptions);
+            // Validate redirect path to prevent XSS
+            if (!isValidRedirectPath(redirect)) {
+              console.error(`Invalid redirect path: "${redirect}". Redirect must start with "/" and not contain dangerous protocols.`);
+              isNavigatingToRedirect = true;
+              try {
+                return await originalNavigate!(defaultRedirect, options);
+              } finally {
+                isNavigatingToRedirect = false;
+              }
+            }
+
+            // Prevent redirect loops
+            if (redirect === path) {
+              console.warn(
+                `Guard redirect loop detected: trying to redirect to "${redirect}" which is the same as the target destination. ` +
+                `Skipping redirect to prevent infinite loop.`
+              );
+              return false;
+            }
+
+            // Perform the redirect
+            isNavigatingToRedirect = true;
+            try {
+              return await originalNavigate!(redirect, options);
+            } finally {
+              isNavigatingToRedirect = false;
+            }
           }
         }
 
         // All guards passed - proceed with navigation
-        return originalNavigate(to, navigateOptions);
+        return originalNavigate!(to, options);
       };
+
+      // Replace the router's navigate method with our wrapped version
+      (router as any).navigate = wrappedNavigate;
     },
   };
 }

@@ -247,4 +247,73 @@ describe('RouteMatcher', () => {
 
     expect(match).toBeNull();
   });
+
+  // Test for LRU cache eviction (lines 209-213)
+  it('should evict least recently used entry when cache is full', () => {
+    const routes = [route('/users/:id', () => null)];
+    // Create matcher with very small cache size
+    const matcher = new RouteMatcher(2);
+
+    matcher.match('/users/1', routes);
+    matcher.match('/users/2', routes);
+    // Now cache is full with 2 entries
+
+    // Access first entry to mark it as recently used
+    matcher.match('/users/1', routes);
+
+    // Add third entry - should evict /users/2 (least recently used)
+    matcher.match('/users/3', routes);
+
+    // /users/1 should still be in cache
+    expect(matcher.getCacheSize()).toBe(2);
+  });
+
+  it('should evict oldest entry when cache is full without re-access', () => {
+    const routes = [route('/users/:id', () => null)];
+    const matcher = new RouteMatcher(2);
+
+    matcher.match('/users/1', routes);
+    matcher.match('/users/2', routes);
+    // Cache is full: [/users/1, /users/2] where /users/2 is most recent
+
+    // Add third entry - should evict /users/1 (least recently used)
+    matcher.match('/users/3', routes);
+
+    // Cache should now contain [/users/3, /users/2]
+    expect(matcher.getCacheSize()).toBe(2);
+  });
+
+  // Test for getCacheSize (lines 227-228)
+  it('should return correct cache size', () => {
+    const routes = [route('/users/:id', () => null)];
+    const matcher = new RouteMatcher(10);
+
+    expect(matcher.getCacheSize()).toBe(0);
+
+    matcher.match('/users/1', routes);
+    expect(matcher.getCacheSize()).toBe(1);
+
+    matcher.match('/users/2', routes);
+    expect(matcher.getCacheSize()).toBe(2);
+
+    matcher.match('/users/1', routes); // Re-access - shouldn't increase size
+    expect(matcher.getCacheSize()).toBe(2);
+
+    matcher.clearCache();
+    expect(matcher.getCacheSize()).toBe(0);
+  });
+
+  // Test for wildcard segment scoring (lines 119-122)
+  it('should score segments with wildcards correctly', () => {
+    // Test segment like :path* which should get OPTIONAL_PARAMETER score
+    expect(calculateScore('/files/:path*')).toBe(1050); // /files (static) + :path* (optional param)
+  });
+
+  it('should score optional parameters correctly', () => {
+    expect(calculateScore('/users/:id?')).toBe(1050); // /users (static) + :id? (optional)
+  });
+
+  it('should score routes with only optional parameters', () => {
+    expect(calculateScore('/:id?')).toBe(50); // Just optional param
+  });
 });

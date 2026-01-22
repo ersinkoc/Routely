@@ -8,8 +8,8 @@ import { Component } from 'react';
 
 export interface RouterErrorBoundaryProps {
   children: ReactNode;
-  fallback?: ComponentType<{ error: Error; errorInfo: any }>;
-  onError?: (error: Error, errorInfo: any) => void;
+  fallback?: ComponentType<{ error: Error; errorInfo: React.ErrorInfo }>;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 export interface RouterErrorBoundaryState {
@@ -45,7 +45,7 @@ export class RouterErrorBoundary extends Component<
     return { hasError: true, error };
   }
 
-  override componentDidCatch(error: Error, errorInfo: any): void {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     } else {
@@ -58,7 +58,7 @@ export class RouterErrorBoundary extends Component<
       const Fallback = this.props.fallback;
 
       if (Fallback) {
-        return <Fallback error={this.state.error!} errorInfo={null} />;
+        return <Fallback error={this.state.error!} errorInfo={{ componentStack: '' }} />;
       }
 
       return (

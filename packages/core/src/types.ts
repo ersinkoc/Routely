@@ -4,6 +4,19 @@
  */
 
 /**
+ * Router error interface.
+ * Re-exported from errors for type convenience.
+ */
+export interface RouterError {
+  /** Error code */
+  code: 'ROUTE_NOT_FOUND' | 'GUARD_REJECTED' | 'PLUGIN_ERROR';
+  /** Route that caused the error (if applicable) */
+  route?: Route;
+  /** Plugin that caused the error (if applicable) */
+  plugin?: string;
+}
+
+/**
  * Represents a matched route with all its properties.
  *
  * @example
@@ -36,6 +49,8 @@ export interface Route {
 /**
  * Route definition structure for creating routes.
  *
+ * @typeParam TComponent - Component type for this route (defaults to unknown for flexibility)
+ *
  * @example
  * ```typescript
  * const userRoute: RouteDefinition = {
@@ -48,19 +63,21 @@ export interface Route {
  * };
  * ```
  */
-export interface RouteDefinition {
+export interface RouteDefinition<TComponent = unknown> {
   /** Path pattern (e.g., '/users/:id') */
   path: string;
   /** Component to render for this route */
-  component: any;
+  component: TComponent;
   /** Nested child routes */
-  children?: RouteDefinition[];
+  children?: RouteDefinition<TComponent>[];
   /** Route metadata */
   meta?: Record<string, unknown>;
 }
 
 /**
  * Options for creating a router.
+ *
+ * @typeParam TComponent - Component type for routes (defaults to unknown for flexibility)
  *
  * @example
  * ```typescript
@@ -74,9 +91,9 @@ export interface RouteDefinition {
  * };
  * ```
  */
-export interface RouterOptions {
+export interface RouterOptions<TComponent = unknown> {
   /** Array of route definitions */
-  routes: RouteDefinition[];
+  routes: RouteDefinition<TComponent>[];
   /** History implementation (defaults to browser history) */
   history?: History;
   /** Base path for all routes */
@@ -86,6 +103,8 @@ export interface RouterOptions {
 /**
  * Router instance interface.
  *
+ * @typeParam TComponent - Component type for routes (defaults to unknown for flexibility)
+ *
  * @example
  * ```typescript
  * const router = createRouter({ routes });
@@ -93,11 +112,11 @@ export interface RouterOptions {
  * router.use(myPlugin);
  * ```
  */
-export interface Router {
+export interface Router<TComponent = unknown> {
   /** Current matched route (null if no route matched yet) */
   readonly currentRoute: Route | null;
   /** All registered routes */
-  readonly routes: RouteDefinition[];
+  readonly routes: RouteDefinition<TComponent>[];
   /** History instance */
   readonly history: History;
 
@@ -126,7 +145,7 @@ export interface Router {
    * @param plugin - Plugin to register
    * @returns Router instance for chaining
    */
-  use(plugin: RouterPlugin): Router;
+  use(plugin: RouterPlugin): Router<TComponent>;
 
   /**
    * Unregister a plugin by name.
@@ -183,9 +202,29 @@ export interface NavigateOptions {
 export type RouterEvent = 'beforeNavigate' | 'afterNavigate' | 'error';
 
 /**
- * Event handler function type.
+ * Event handler for beforeNavigate events.
+ * Receives target route and current route (null for initial navigation).
+ * Return false to cancel navigation.
  */
-export type RouterEventHandler = (...args: any[]) => void | boolean | Promise<void | boolean>;
+export type BeforeNavigateHandler = (to: Route, from: Route | null) => boolean | Promise<boolean>;
+
+/**
+ * Event handler for afterNavigate events.
+ * Receives the new current route.
+ */
+export type AfterNavigateHandler = (route: Route) => void | Promise<void>;
+
+/**
+ * Event handler for error events.
+ * Receives the error that occurred.
+ */
+export type ErrorHandler = (error: Error | RouterError) => void | Promise<void>;
+
+/**
+ * Union type of all router event handlers.
+ * Use specific handler types (BeforeNavigateHandler, AfterNavigateHandler, ErrorHandler) for better type safety.
+ */
+export type RouterEventHandler = BeforeNavigateHandler | AfterNavigateHandler | ErrorHandler;
 
 /**
  * Plugin interface for extending router functionality.
@@ -203,12 +242,12 @@ export type RouterEventHandler = (...args: any[]) => void | boolean | Promise<vo
  * };
  * ```
  */
-export interface RouterPlugin {
+export interface RouterPlugin<TComponent = unknown> {
   /** Unique plugin identifier (kebab-case) */
   name: string;
 
   /** Semantic version */
-  version: string;
+  version?: string;
 
   /** Plugin dependencies (other plugin names) */
   dependencies?: string[];
@@ -217,7 +256,7 @@ export interface RouterPlugin {
    * Called when plugin is registered.
    * @param router - Router instance
    */
-  install: (router: Router) => void;
+  install: (router: Router<TComponent>) => void;
 
   /** Called after all plugins installed and router is ready */
   onInit?: () => void | Promise<void>;
@@ -343,18 +382,6 @@ export interface RouteRef<TParams = Record<string, string>> {
   build(params: TParams): string;
   /** String representation */
   toString(): string;
-}
-
-/**
- * Router error class.
- */
-export interface RouterError extends Error {
-  /** Error code */
-  code: 'ROUTE_NOT_FOUND' | 'GUARD_REJECTED' | 'PLUGIN_ERROR';
-  /** Route that caused the error (if applicable) */
-  route?: Route;
-  /** Plugin that caused the error (if applicable) */
-  plugin?: string;
 }
 
 /**

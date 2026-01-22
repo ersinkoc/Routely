@@ -81,6 +81,17 @@ export function joinPaths(...segments: string[]): string {
  * ```
  */
 export function normalizeSlashes(path: string): string {
+  // Handle edge cases
+  if (!path || path === '') {
+    return '/';
+  }
+
+  // Don't modify paths that start with query or hash
+  // These are URL fragments, not paths
+  if (path.startsWith('?') || path.startsWith('#')) {
+    return path;
+  }
+
   // Replace multiple slashes with single slash
   let normalized = path.replace(/\/{2,}/g, '/');
 

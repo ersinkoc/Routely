@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo, useLayoutEffect, useEffect } from 'react';
+import type { ReactElement } from 'react';
 import type { Route } from '@oxog/routely-core';
 import { RouterContext } from './context.js';
 import type { RouterProviderProps } from './types.js';
@@ -21,7 +22,7 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
  * </RouterProvider>
  * ```
  */
-export function RouterProvider({ router, children }: RouterProviderProps) {
+export function RouterProvider({ router, children }: RouterProviderProps): ReactElement {
   // Initialize state with the router's current route immediately
   // This prevents an extra render cycle
   const [currentRoute, setCurrentRoute] = useState<Route | null>(() => router.currentRoute);

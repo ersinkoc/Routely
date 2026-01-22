@@ -12,6 +12,9 @@ export type {
   RouterPlugin,
   RouterEvent,
   RouterEventHandler,
+  BeforeNavigateHandler,
+  AfterNavigateHandler,
+  ErrorHandler,
   NavigateOptions,
   History,
   Location,
@@ -21,6 +24,20 @@ export type {
   RouteMatch,
   ExtractParams,
 } from './types.js';
+
+// Constants
+export {
+  MAX_ROUTE_PATH_LENGTH,
+  MAX_METADATA_SIZE,
+  MAX_NAVIGATION_PATH_LENGTH,
+  MAX_PLUGIN_NAME_LENGTH,
+  MAX_ERROR_MESSAGE_LENGTH,
+  MAX_ERROR_PATH_LENGTH,
+  NAVIGATION_GUARD_TIMEOUT_MS,
+  DEFAULT_MAX_CACHE_SIZE,
+  MAX_HREF_LENGTH,
+  ROUTE_SCORE,
+} from './constants.js';
 
 // Router
 export { createRouter, route } from './router.js';

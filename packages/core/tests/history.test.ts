@@ -130,6 +130,60 @@ describe('createBrowserHistory', () => {
 
     expect(typeof unsubscribe).toBe('function');
   });
+
+  // Test for popstate listener cleanup (similar to hash history)
+  it('should remove popstate event listener when all listeners unsubscribed', () => {
+    const history = createBrowserHistory();
+    const listener1 = vi.fn();
+    const listener2 = vi.fn();
+
+    // Clear previous calls
+    // @ts-ignore
+    window.addEventListener.mockClear();
+    // @ts-ignore
+    window.removeEventListener.mockClear();
+
+    const unsubscribe1 = history.listen(listener1);
+    // @ts-ignore
+    expect(window.addEventListener).toHaveBeenCalledWith('popstate', expect.any(Function));
+
+    const unsubscribe2 = history.listen(listener2);
+    // Second listener should not add another event listener
+    // @ts-ignore
+    expect(window.addEventListener).toHaveBeenCalledTimes(1);
+
+    // Unsubscribe first listener - event listener should remain
+    unsubscribe1();
+    // @ts-ignore
+    expect(window.removeEventListener).not.toHaveBeenCalled();
+
+    // Unsubscribe second listener - event listener should be removed
+    unsubscribe2();
+    // @ts-ignore
+    expect(window.removeEventListener).toHaveBeenCalledWith('popstate', expect.any(Function));
+  });
+
+  // Test for popstate handler
+  it('should notify listeners when popstate event occurs', () => {
+    const history = createBrowserHistory();
+    const listener = vi.fn();
+
+    history.listen(listener);
+
+    // Get the popstate handler that was registered
+    // @ts-ignore
+    const addEventListenerCalls = window.addEventListener.mock.calls;
+    const popStateHandler = addEventListenerCalls.find(
+      (call: unknown[]) => call[0] === 'popstate'
+    )?.[1] as ((event: PopStateEvent) => void) | undefined;
+
+    expect(popStateHandler).toBeDefined();
+
+    // Simulate popstate event
+    popStateHandler?.(new PopStateEvent('popstate'));
+
+    expect(listener).toHaveBeenCalled();
+  });
 });
 
 describe('createHashHistory', () => {
@@ -282,6 +336,62 @@ describe('createHashHistory', () => {
     const unsubscribe = history.listen(listener);
 
     expect(typeof unsubscribe).toBe('function');
+  });
+
+  // Test for hash change listener cleanup (lines 233-239)
+  it('should remove hashchange event listener when all listeners unsubscribed', () => {
+    const history = createHashHistory();
+    const listener1 = vi.fn();
+    const listener2 = vi.fn();
+
+    // Clear previous calls
+    // @ts-ignore
+    window.addEventListener.mockClear();
+    // @ts-ignore
+    window.removeEventListener.mockClear();
+
+    const unsubscribe1 = history.listen(listener1);
+    // @ts-ignore
+    expect(window.addEventListener).toHaveBeenCalledWith('hashchange', expect.any(Function));
+
+    const unsubscribe2 = history.listen(listener2);
+    // Second listener should not add another event listener
+    // @ts-ignore
+    expect(window.addEventListener).toHaveBeenCalledTimes(1);
+
+    // Unsubscribe first listener - event listener should remain
+    unsubscribe1();
+    // @ts-ignore
+    expect(window.removeEventListener).not.toHaveBeenCalled();
+
+    // Unsubscribe second listener - event listener should be removed
+    unsubscribe2();
+    // @ts-ignore
+    expect(window.removeEventListener).toHaveBeenCalledWith('hashchange', expect.any(Function));
+  });
+
+  // Test for handleHashChange (lines 207-208)
+  it('should notify listeners when hash changes', () => {
+    const history = createHashHistory();
+    const listener = vi.fn();
+
+    history.listen(listener);
+
+    // Get the hashchange handler that was registered
+    // @ts-ignore
+    const addEventListenerCalls = window.addEventListener.mock.calls;
+    const hashChangeHandler = addEventListenerCalls.find(
+      (call: unknown[]) => call[0] === 'hashchange'
+    )?.[1] as ((event: Event) => void) | undefined;
+
+    expect(hashChangeHandler).toBeDefined();
+
+    // Simulate hash change
+    // @ts-ignore
+    window.location.hash = '#/users';
+    hashChangeHandler?.(new HashChangeEvent('hashchange'));
+
+    expect(listener).toHaveBeenCalled();
   });
 });
 

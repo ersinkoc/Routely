@@ -521,4 +521,257 @@ describe('Outlet', () => {
     const wrapper = screen.getByTestId('wrapper');
     expect(wrapper.children.length).toBe(0);
   });
+
+  it('should catch errors in Outlet component rendering', () => {
+    // Component that throws an error
+    const BadComponent = () => {
+      throw new Error('Component error');
+    };
+
+    const history = createMemoryHistory({ initialEntries: ['/bad'] });
+    const router = createRouter({
+      routes: [route('/bad', BadComponent)],
+      history,
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <RouterProvider router={router}>
+        <Outlet />
+      </RouterProvider>
+    );
+
+    // Error should be caught and logged
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('Link XSS Protection', () => {
+  it('should throw error for javascript: protocol', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // javascript: doesn't start with / so it fails the first check
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="javascript:alert(1)">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: "javascript:alert(1)" - must start with "/"');
+  });
+
+  it('should throw error for data: protocol', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // data: doesn't start with / so it fails the first check
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="data:text/html,<script>alert(1)</script>">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: "data:text/html,<script>alert(1)</script>" - must start with "/"');
+  });
+
+  it('should throw error for vbscript: protocol', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // vbscript: doesn't start with / so it fails the first check
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="vbscript:alert(1)">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: "vbscript:alert(1)" - must start with "/"');
+  });
+
+  it('should throw error for file: protocol', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // file: protocol doesn't start with / so it fails the first check
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="file:///etc/passwd">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: "file:///etc/passwd" - must start with "/"');
+  });
+
+  it('should throw error for href with HTML brackets', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="/test<script>alert(1)</script>">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: contains HTML brackets');
+  });
+
+  it('should throw error for href with null byte', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // Create string with null byte using String.fromCharCode
+    const hrefWithNullByte = '/test' + String.fromCharCode(0) + 'path';
+
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to={hrefWithNullByte}>Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: contains null byte');
+  });
+
+  it('should throw error for href with control characters', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // Create string with control character using String.fromCharCode
+    const hrefWithControlChar = '/test' + String.fromCharCode(0x01) + 'path';
+
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to={hrefWithControlChar}>Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: contains control characters');
+  });
+
+  it('should throw error for excessively long href', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    const longPath = '/test/' + 'a'.repeat(3000);
+
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to={longPath}>Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Href too long');
+  });
+
+  it('should accept # as href', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    render(
+      <RouterProvider router={router}>
+        <Link to="#">Click</Link>
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Click')).toHaveAttribute('href', '#');
+  });
+
+  it('should accept ? as href prefix', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    render(
+      <RouterProvider router={router}>
+        <Link to="?page=1">Click</Link>
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Click')).toHaveAttribute('href', '?page=1');
+  });
+
+  it('should accept * as href', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    render(
+      <RouterProvider router={router}>
+        <Link to="*">Click</Link>
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Click')).toHaveAttribute('href', '*');
+  });
+
+  it('should throw error for non-string href', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // @ts-expect-error - Testing invalid input
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to={123}>Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Href must be a string');
+  });
+
+  it('should throw error for dangerous protocol in RouteRef', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // Pass a RouteRef object with dangerous protocol
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to={{ path: 'javascript:alert(1)', state: {} }}>Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('must start with "/"');
+  });
+
+  it('should throw error for event handler injection', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="/test?onclick=alert(1)">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: contains event handler');
+  });
+
+  it('should throw error for about: protocol', () => {
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({ routes: [route('/', Home)], history });
+
+    // about: doesn't start with / so it fails the first check
+    expect(() => {
+      render(
+        <RouterProvider router={router}>
+          <Link to="about:blank">Click</Link>
+        </RouterProvider>
+      );
+    }).toThrow('Invalid href: "about:blank" - must start with "/"');
+  });
 });

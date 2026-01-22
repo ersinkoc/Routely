@@ -124,4 +124,148 @@ describe('createRoutes', () => {
     // @ts-ignore - testing undefined behavior
     expect(routes.nonExistent).toBeUndefined();
   });
+
+  // Prototype pollution prevention tests (lines 82-84)
+  it('should throw error when accessing __proto__', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.__proto__;
+    }).toThrow('Cannot access blocked property: "__proto__"');
+  });
+
+  it('should throw error when accessing constructor', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.constructor;
+    }).toThrow('Cannot access blocked property: "constructor"');
+  });
+
+  it('should throw error when accessing prototype', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.prototype;
+    }).toThrow('Cannot access blocked property: "prototype"');
+  });
+
+  it('should throw error when accessing hasOwnProperty', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.hasOwnProperty;
+    }).toThrow('Cannot access blocked property: "hasOwnProperty"');
+  });
+
+  it('should throw error when accessing toString', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.toString;
+    }).toThrow('Cannot access blocked property: "toString"');
+  });
+
+  it('should throw error when accessing toLocaleString', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.toLocaleString;
+    }).toThrow('Cannot access blocked property: "toLocaleString"');
+  });
+
+  it('should throw error when accessing valueOf', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.valueOf;
+    }).toThrow('Cannot access blocked property: "valueOf"');
+  });
+
+  it('should throw error when accessing isPrototypeOf', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.isPrototypeOf;
+    }).toThrow('Cannot access blocked property: "isPrototypeOf"');
+  });
+
+  it('should throw error when accessing propertyIsEnumerable', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    expect(() => {
+      // @ts-ignore - testing blocked property
+      const _ = routes.propertyIsEnumerable;
+    }).toThrow('Cannot access blocked property: "propertyIsEnumerable"');
+  });
+
+  // Symbol access test (lines 87-89)
+  it('should return undefined for symbol access', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    const sym = Symbol('test');
+    // @ts-ignore - testing symbol access
+    expect(routes[sym]).toBeUndefined();
+  });
+
+  it('should return undefined for well-known symbols', () => {
+    const registry: RouteRegistry = {
+      root: '/',
+    };
+
+    const routes = createRoutes(registry);
+
+    // @ts-ignore - testing symbol access
+    expect(routes[Symbol.iterator]).toBeUndefined();
+    // @ts-ignore - testing symbol access
+    expect(routes[Symbol.toStringTag]).toBeUndefined();
+  });
 });

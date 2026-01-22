@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { createRouter, route, createMemoryHistory } from '@oxog/routely-core';
 import { RouterProvider } from '../src/provider';
-import { useNavigate, useParams, useRoute } from '../src/hooks';
+import { useNavigate, useParams, useRoute, useSearch } from '../src/hooks';
 
 describe('useNavigate', () => {
   it('should navigate to new route', async () => {
@@ -142,6 +142,45 @@ describe('useNavigate', () => {
       expect(screen.getByText('Path: /users')).toBeInTheDocument();
     });
   });
+
+  it('should handle navigation errors gracefully', () => {
+    const TestComponent = () => {
+      const navigate = useNavigate();
+      return (
+        <button
+          onClick={() => {
+            // Navigate to a path that exceeds max length
+            const longPath = '/x'.repeat(3000);
+            navigate(longPath);
+          }}
+        >
+          Navigate to Long Path
+        </button>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({
+      routes: [route('/', Home)],
+      history,
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    fireEvent.click(screen.getByText('Navigate to Long Path'));
+
+    // Console.error should be called with navigation error
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
 
 describe('useParams', () => {
@@ -235,5 +274,199 @@ describe('useRoute', () => {
         </RouterProvider>
       );
     }).toThrow('useRoute called but no route is currently matched');
+  });
+});
+
+describe('useSearch', () => {
+  it('should return current search params', () => {
+    const TestComponent = () => {
+      const [search] = useSearch<Record<string, string>>();
+      return <div>Page: {search.page || 'none'}</div>;
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory({ initialEntries: ['/users?page=1'] });
+    const router = createRouter({
+      routes: [route('/users', Home)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Page: 1')).toBeInTheDocument();
+  });
+
+  it('should update search params', async () => {
+    const TestComponent = () => {
+      const [search, setSearch] = useSearch<Record<string, string>>();
+      return (
+        <div>
+          <div>Page: {search.page || 'none'}</div>
+          <button onClick={() => setSearch({ page: '2' })}>Set Page 2</button>
+        </div>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory({ initialEntries: ['/users?page=1'] });
+    const router = createRouter({
+      routes: [route('/users', Home)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Page: 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Set Page 2'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Page: 2')).toBeInTheDocument();
+    });
+  });
+
+  it('should update search params with function', async () => {
+    const TestComponent = () => {
+      const [search, setSearch] = useSearch<Record<string, string>>();
+      return (
+        <div>
+          <div>Page: {search.page || 'none'}</div>
+          <button onClick={() => setSearch((prev) => ({ ...prev, page: '3' }))}>
+            Set Page 3
+          </button>
+        </div>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory({ initialEntries: ['/users?page=1'] });
+    const router = createRouter({
+      routes: [route('/users', Home)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Page: 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Set Page 3'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Page: 3')).toBeInTheDocument();
+    });
+  });
+
+  it('should throw error when update value is null', () => {
+    const TestComponent = () => {
+      const [, setSearch] = useSearch<Record<string, string>>();
+      // Call setSearch with null immediately in the component
+      try {
+        setSearch(null as any);
+      } catch (e) {
+        return <div>Caught error</div>;
+      }
+      return <div>No error</div>;
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({
+      routes: [route('/', Home)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    // Should have caught the error
+    expect(screen.getByText('Caught error')).toBeInTheDocument();
+  });
+
+  it('should throw error when update value is undefined', () => {
+    const TestComponent = () => {
+      const [, setSearch] = useSearch<Record<string, string>>();
+      // Call setSearch with undefined immediately in the component
+      try {
+        setSearch(undefined as any);
+      } catch (e) {
+        return <div>Caught error</div>;
+      }
+      return <div>No error</div>;
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory();
+    const router = createRouter({
+      routes: [route('/', Home)],
+      history,
+    });
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    // Should have caught the error
+    expect(screen.getByText('Caught error')).toBeInTheDocument();
+  });
+
+  it('should handle function that throws error gracefully', () => {
+    const TestComponent = () => {
+      const [search, setSearch] = useSearch<Record<string, string>>();
+      return (
+        <div>
+          <div>Page: {search.page || 'none'}</div>
+          <button
+            onClick={() =>
+              setSearch(() => {
+                throw new Error('Function error');
+              })
+            }
+          >
+            Trigger Error
+          </button>
+        </div>
+      );
+    };
+
+    const Home = () => <div>Home</div>;
+    const history = createMemoryHistory({ initialEntries: ['/users?page=1'] });
+    const router = createRouter({
+      routes: [route('/users', Home)],
+      history,
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <RouterProvider router={router}>
+        <TestComponent />
+      </RouterProvider>
+    );
+
+    expect(screen.getByText('Page: 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Trigger Error'));
+
+    // Console.error should be called
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
   });
 });

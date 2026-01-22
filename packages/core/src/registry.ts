@@ -24,6 +24,26 @@ export type TypedRoutes<T extends RouteRegistry> = {
 };
 
 /**
+ * Blocked property names to prevent prototype pollution.
+ */
+const BLOCKED_PROPS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'toString',
+  'toLocaleString',
+  'valueOf',
+]);
+
+/**
+ * Check if we're in development mode.
+ */
+const isDevelopment = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development';
+
+/**
  * Create a route reference.
  */
 function createRouteRef<TParams extends Record<string, string>>(path: string): RouteRef<TParams> {
@@ -32,7 +52,8 @@ function createRouteRef<TParams extends Record<string, string>>(path: string): R
     build: (params: TParams) => {
       return path.replace(/:([^/]+)/g, (_, key) => {
         const value = params[key as keyof TParams];
-        return value !== undefined ? String(value) : `:${key}`;
+        // Check for null AND undefined (null would become "null" string)
+        return value != null ? String(value) : `:${key}`;
       });
     },
     toString: () => path,
@@ -61,7 +82,17 @@ function createRouteRef<TParams extends Record<string, string>>(path: string): R
  */
 export function createRoutes<T extends RouteRegistry>(registry: T): TypedRoutes<T> {
   const proxy = new Proxy({} as TypedRoutes<T>, {
-    get(_target, prop: string) {
+    get(_target, prop: string | symbol) {
+      // Block prototype pollution and dangerous properties
+      if (typeof prop === 'string' && BLOCKED_PROPS.has(prop)) {
+        throw new Error(`Cannot access blocked property: "${prop}"`);
+      }
+
+      // Also block symbol access for security
+      if (typeof prop === 'symbol') {
+        return undefined;
+      }
+
       const value = registry[prop];
 
       if (typeof value === 'string') {
@@ -70,6 +101,15 @@ export function createRoutes<T extends RouteRegistry>(registry: T): TypedRoutes<
         return createRoutes(value);
       }
 
+      // In development, warn about invalid registry access
+      if (isDevelopment && value === undefined) {
+        console.warn(
+          `Accessing undefined route property: "${String(prop)}". ` +
+          `This may be a typo in your route registry.`
+        );
+      }
+
+      // Return undefined for invalid registry values instead of throwing
       return undefined;
     },
   });

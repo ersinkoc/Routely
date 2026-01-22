@@ -4,6 +4,42 @@
  */
 
 import type { History, Location, LocationListener, MemoryHistoryOptions } from './types.js';
+import { MAX_NAVIGATION_PATH_LENGTH } from './constants.js';
+
+/**
+ * Validate path for history navigation.
+ * Prevents dangerous protocols and invalid paths.
+ * @internal
+ */
+function validatePath(path: string, methodName: string): void {
+  if (typeof path !== 'string') {
+    throw new TypeError(`${methodName}: path must be a string`);
+  }
+
+  if (path.length === 0) {
+    throw new Error(`${methodName}: path cannot be empty`);
+  }
+
+  if (path.length > MAX_NAVIGATION_PATH_LENGTH) {
+    throw new Error(`${methodName}: path too long (max ${MAX_NAVIGATION_PATH_LENGTH} characters)`);
+  }
+
+  // Check for null bytes
+  if (path.includes('\0')) {
+    throw new Error(`${methodName}: path cannot contain null bytes`);
+  }
+
+  // Check for control characters
+  if (/[\x00-\x1F\x7F]/.test(path)) {
+    throw new Error(`${methodName}: path contains invalid control characters`);
+  }
+
+  // Check for dangerous protocols (XSS prevention)
+  const dangerousProtocols = /^(javascript|data|vbscript|file|about):/i;
+  if (dangerousProtocols.test(path)) {
+    throw new Error(`${methodName}: path contains dangerous protocol`);
+  }
+}
 
 /**
  * Create a browser history instance using the History API.
@@ -43,11 +79,13 @@ export function createBrowserHistory(): History {
   };
 
   const push = (path: string, state?: unknown) => {
+    validatePath(path, 'push');
     window.history.pushState(state, '', path);
     notifyListeners();
   };
 
   const replace = (path: string, state?: unknown) => {
+    validatePath(path, 'replace');
     window.history.replaceState(state, '', path);
     notifyListeners();
   };
@@ -125,6 +163,7 @@ export function createMemoryHistory(options?: MemoryHistoryOptions): History {
   };
 
   const push = (path: string, _state?: unknown) => {
+    validatePath(path, 'push (memory)');
     // Remove all entries after current index before pushing
     entries.splice(index + 1);
     entries.push(path);
@@ -133,6 +172,7 @@ export function createMemoryHistory(options?: MemoryHistoryOptions): History {
   };
 
   const replace = (path: string, _state?: unknown) => {
+    validatePath(path, 'replace (memory)');
     entries[index] = path;
     notifyListeners();
   };
@@ -208,10 +248,12 @@ export function createHashHistory(): History {
   };
 
   const push = (path: string, _state?: unknown) => {
+    validatePath(path, 'push (hash)');
     window.location.hash = path;
   };
 
   const replace = (path: string, _state?: unknown) => {
+    validatePath(path, 'replace (hash)');
     const index = window.location.href.indexOf('#');
     const base = index >= 0 ? window.location.href.slice(0, index) : window.location.href;
     window.location.replace(`${base}#${path}`);

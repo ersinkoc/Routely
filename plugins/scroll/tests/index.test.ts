@@ -9,6 +9,9 @@ import {
   saveScrollPosition,
   restoreScroll,
   scrollToTop,
+  _hasScrollPositions,
+  _getScrollPositionsInternal,
+  ScrollPositionCache,
 } from '../src/index';
 import type { Router } from '@oxog/routely-core';
 
@@ -57,8 +60,26 @@ function createMockRouter(): Router {
   const baseNavigate = async (to: string, options?: any) => {
     navigateCalls.push({ to, options });
 
-    // Update currentRoute
-    currentRouteImpl = { path: to, params: {}, search: {}, hash: '', state: options?.state, meta: {} };
+    // Create the target route object
+    const targetRoute = { path: to, params: {}, search: {}, hash: '', state: options?.state, meta: {} };
+
+    // Trigger beforeNavigate event first (this is where scroll plugin saves positions)
+    const beforeCallbacks = eventCallbacks.get('beforeNavigate') || [];
+    for (const cb of beforeCallbacks) {
+      try {
+        const result = await cb(targetRoute, currentRouteImpl);
+        // If any beforeNavigate handler returns false, cancel navigation
+        if (result === false) {
+          return false;
+        }
+      } catch (e) {
+        console.error('Error in beforeNavigate callback:', e);
+        return false;
+      }
+    }
+
+    // Update currentRoute after beforeNavigate allows navigation
+    currentRouteImpl = targetRoute;
 
     // Trigger afterNavigate event asynchronously (simulating real kernel behavior)
     const callbacks = eventCallbacks.get('afterNavigate') || [];
@@ -178,6 +199,7 @@ describe('scrollPlugin', () => {
         scrollX: 100,
         scrollY: 200,
         exclude: [],
+        maxScrollPositions: 50,
       });
     });
 
@@ -192,6 +214,7 @@ describe('scrollPlugin', () => {
         scrollX: 0,
         scrollY: 0,
         exclude: [],
+        maxScrollPositions: 50,
       });
     });
 
@@ -201,7 +224,8 @@ describe('scrollPlugin', () => {
 
       plugin.install(router);
 
-      expect((router as any)[Symbol.for('scroll-positions')]).toBeInstanceOf(Map);
+      expect(_hasScrollPositions(router)).toBe(true);
+      expect(_getScrollPositionsInternal(router)).toBeInstanceOf(ScrollPositionCache);
     });
   });
 
@@ -257,7 +281,7 @@ describe('scrollPlugin', () => {
 
       await router.navigate('/new-route');
 
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       expect(positions.get('/current')).toEqual({ x: 50, y: 100 });
     });
   });
@@ -270,7 +294,7 @@ describe('scrollPlugin', () => {
       plugin.install(router);
 
       // Save position for /back-route
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       positions.set('/back-route', { x: 50, y: 100 });
 
       await router.navigate('/back-route');
@@ -349,7 +373,7 @@ describe('scrollPlugin', () => {
 
       expect(mockScrollTo).toHaveBeenCalled();
 
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       // Should save position for /current, not /test?param=value
       expect(positions.has('/current')).toBe(true);
       expect(positions.get('/current')).toEqual({ x: 10, y: 20 });
@@ -370,7 +394,7 @@ describe('scrollPlugin', () => {
 
       expect(mockScrollTo).toHaveBeenCalled();
 
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       expect(positions.has('/current')).toBe(true);
       expect(positions.get('/current')).toEqual({ x: 30, y: 40 });
     });
@@ -427,7 +451,7 @@ describe('scrollPlugin', () => {
 
       saveScrollPosition(router);
 
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       expect(positions.get('/test')).toEqual({ x: 75, y: 150 });
     });
 
@@ -437,7 +461,7 @@ describe('scrollPlugin', () => {
 
       plugin.install(router);
 
-      const positions = (router as any)[Symbol.for('scroll-positions')];
+      const positions = _getScrollPositionsInternal(router)!;
       positions.set('/test', { x: 75, y: 150 });
 
       router.currentRoute = { path: '/test', params: {} };
